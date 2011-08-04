@@ -14,12 +14,12 @@ types() ->
 
 prop_extension() ->
     ?FORALL(Ext, extensions(),
-            lists:member(Ext, mimetypes:type(mimetypes:extension(Ext)))).
+            lists:member(Ext, mimetypes:extensions(mimetypes:extension(Ext)))).
 
 prop_type() ->
     ?FORALL(Type, types(),
             lists:all(fun (X) -> X end,
-                      [ mimetypes:extension(Ext) =:= Type || Ext <- mimetypes:type(Type) ])).
+                      [ mimetypes:extension(Ext) =:= Type || Ext <- mimetypes:extensions(Type) ])).
 
 
 %% eunit
@@ -29,7 +29,7 @@ t_properties() ->
                                      fun(Format, Data) ->
                                              io:format(standard_error, Format, Data)
                                      end},
-                                    {numtests, 100}])).
+                                    {numtests, 1000}])).
 
 mimetypes_test_() ->
     [{setup,
