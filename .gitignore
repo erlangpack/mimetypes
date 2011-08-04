@@ -1,0 +1,5 @@
+ebin
+.eunit
+deps
+src/mimetypes_scan.erl
+src/mimetypes_parse.erl
