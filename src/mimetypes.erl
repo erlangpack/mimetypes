@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, extension/1, filename/1]).
+-export([start_link/0, extension/1, filename/1, extensions/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -26,6 +26,11 @@ extension(Ext) ->
 filename(Filename) ->
     "." ++ Ext = filename:extension(Filename),
     extension(Ext).
+
+extensions(Type) ->
+    gen_server:call(?SERVER, {extensions, Type}).
+    
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -93,6 +98,15 @@ handle_call({extension, Ext}, _From, #state{ extensions = Exts } = State) ->
             Reply = undefined;
         true ->
             Reply = dict:fetch(Ext, Exts)
+    end,
+    {reply, Reply, State};
+
+handle_call({extensions, Type}, _From, #state{ mime_types = Types } = State) ->
+    case dict:is_key(Type, Types) of
+        false ->
+            Reply = undefined;
+        true ->
+            Reply = dict:fetch(Type, Types)
     end,
     {reply, Reply, State}.
 

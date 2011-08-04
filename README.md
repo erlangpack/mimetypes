@@ -21,4 +21,6 @@ ok
 "text/html"
 5> mimetypes:filename("/a/b.js").
 "application/javascript"
+6> mimetypes:extensions("application/mathematica").
+["ma","nb","mb"]
 ```
