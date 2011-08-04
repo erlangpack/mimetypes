@@ -19,7 +19,12 @@ prop_extension() ->
 prop_type() ->
     ?FORALL(Type, types(),
             lists:all(fun (X) -> X end,
-                      [ mimetypes:extension(Ext) =:= Type || Ext <- mimetypes:extensions(Type) ])).
+                      [ case mimetypes:extension(Ext) of
+                            Types when is_list(Types) ->
+                                lists:member(Type, Types);
+                            Type1 ->
+                                Type1 =:= Type
+                        end || Ext <- mimetypes:extensions(Type) ])).
 
 
 %% eunit

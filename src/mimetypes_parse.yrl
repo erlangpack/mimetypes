@@ -21,4 +21,4 @@ mappings -> mapping mappings : ['$1' | '$2'].
 Erlang code.
 
 string({string, _L, S}) ->
-  S.
+  list_to_binary(S).

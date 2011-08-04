@@ -22,14 +22,17 @@
 %%%===================================================================
 
 extension(Ext) ->
-    gen_server:call(?SERVER, {extension, Ext}).
+    gen_server:call(?SERVER, {extension, iolist_to_binary(Ext)}).
 
 filename(Filename) ->
     "." ++ Ext = filename:extension(Filename),
     extension(Ext).
 
-extensions(Type) ->
-    gen_server:call(?SERVER, {extensions, Type}).
+extensions(Types) when is_list(Types) ->
+    lists:usort(lists:flatten([ extensions(Type) || Type <- Types ]));
+extensions(Type) when is_binary(Type) ->
+    gen_server:call(?SERVER, {extensions, iolist_to_binary(Type)}).
+
 
 types() ->    
     gen_server:call(?SERVER, types).
@@ -78,7 +81,7 @@ init([]) ->
     S = binary_to_list(B),
     {ok, Tokens, _} = mimetypes_scan:string(S),
     {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
-    Extensions = extract_extensions(MimeTypes),
+    Extensions = aggregate_extensions(extract_extensions(MimeTypes)),
     {ok, #state{
        mime_types = dict:from_list(MimeTypes),
        extensions = dict:from_list(Extensions)
@@ -182,3 +185,16 @@ extract_extensions([{Type, Exts}|Rest]) ->
     lists:concat([
                   [ {Ext, Type} || Ext <- Exts ],
                   extract_extensions(Rest)]).
+
+aggregate_extensions(Exts) ->
+    aggregate_extensions_1(lists:keysort(1, Exts)).
+
+aggregate_extensions_1([]) ->
+    [];
+aggregate_extensions_1([{Ext, Type1},{Ext, Type2}|Rest]) when is_binary(Type1) ->
+    [{Ext, [Type1,Type2]}|aggregate_extensions_1(Rest)];
+aggregate_extensions_1([{Ext, Type1},{Ext, Type2}|Rest]) when is_list(Type1) ->
+    [{Ext, [Type1|[Type2]]}|aggregate_extensions_1(Rest)];
+aggregate_extensions_1([H|T]) ->
+    [H|aggregate_extensions_1(T)].
+
