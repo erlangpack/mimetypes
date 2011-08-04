@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, extension/1]).
+-export([start_link/0, extension/1, filename/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -22,6 +22,10 @@
 
 extension(Ext) ->
     gen_server:call(?SERVER, {extension, Ext}).
+
+filename(Filename) ->
+    "." ++ Ext = filename:extension(Filename),
+    extension(Ext).
 
 %%--------------------------------------------------------------------
 %% @doc

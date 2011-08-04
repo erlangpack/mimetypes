@@ -19,4 +19,6 @@ ok
 "application/mathematica"
 4> mimetypes:extension("html").
 "text/html"
+5> mimetypes:filename("/a/b.js").
+"application/javascript"
 ```
