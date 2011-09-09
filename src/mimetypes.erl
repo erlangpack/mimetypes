@@ -27,7 +27,7 @@
 %%%===================================================================
 
 extension(Ext) ->
-    gen_server:call(?SERVER, {extension, iolist_to_binary(Ext)}).
+    ?MAPMOD:ext_to_mimes(iolist_to_binary(Ext)).
 
 filename(Filename) ->
     "." ++ Ext = filename:extension(Filename),
@@ -36,7 +36,7 @@ filename(Filename) ->
 extensions(Types) when is_list(Types) ->
     lists:usort(lists:flatten([ extensions(Type) || Type <- Types ]));
 extensions(Type) when is_binary(Type) ->
-    gen_server:call(?SERVER, {extensions, iolist_to_binary(Type)}).
+    ?MAPMOD:mime_to_exts(iolist_to_binary(Type)).
 
 
 types() ->    
@@ -240,7 +240,7 @@ map_to_abstract_(Module, Pairs) ->
        erl_syntax:atom(ext_to_mimes),
        ext_to_mimes_clauses(Pairs) ++
        [erl_syntax:clause(
-         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])]),
+         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])]),
      %% mime_to_exts(MimeType) -> [Extension].
      erl_syntax:function(
        erl_syntax:atom(mime_to_exts),
@@ -251,8 +251,8 @@ map_to_abstract_(Module, Pairs) ->
 %% @private Generate a set of ext_to_mimes clauses.
 -spec ext_to_mimes_clauses([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
 ext_to_mimes_clauses(Pairs) ->
-    Exts = lists:usort([E || {_,E} <- Pairs]),
-    Groups = [{E, lists:usort([T || {T,F} <- Pairs, F =:= E])} || E <- Exts],
+    Exts = lists:usort([E || {E,_} <- Pairs]),
+    Groups = [{E, lists:usort([T || {F,T} <- Pairs, F =:= E])} || E <- Exts],
     [erl_syntax:clause([erl_syntax:abstract(E)], none, [erl_syntax:abstract(Ts)])
     || {E, Ts} <- Groups].
 
@@ -260,8 +260,8 @@ ext_to_mimes_clauses(Pairs) ->
 %% @private Generate a set of mime_to_exts clauses.
 -spec mime_to_exts_clauses([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
 mime_to_exts_clauses(Pairs) ->
-    Types = lists:usort([T || {T,_} <- Pairs]),
-    Groups = [{T, lists:usort([E || {U,E} <- Pairs, U =:= T])} || T <- Types],
+    Types = lists:usort([T || {_,T} <- Pairs]),
+    Groups = [{T, lists:usort([E || {E,U} <- Pairs, U =:= T])} || T <- Types],
     [erl_syntax:clause([erl_syntax:abstract(T)], none, [erl_syntax:abstract(Es)])
     || {T, Es} <- Groups].
 
@@ -292,9 +292,9 @@ load_binary(Name, Binary) ->
 -include_lib("eunit/include/eunit.hrl").
 
 codegen_test() ->
-    ok = load_mapping([{<<"a">>, <<"b">>}]),
-    mimetypes_map:module_info(),
-    ?assertEqual([<<"a">>], mimetypes_map:ext_to_mimes(<<"b">>)),
-    ?assertEqual([<<"b">>], mimetypes_map:mime_to_exts(<<"a">>)).
+    ok = load_mapping([{<<"b">>, <<"a">>}]),
+    ?MAPMOD:module_info(),
+    ?assertEqual([<<"a">>], ?MAPMOD:ext_to_mimes(<<"b">>)),
+    ?assertEqual([<<"b">>], ?MAPMOD:mime_to_exts(<<"a">>)).
 
 -endif.
