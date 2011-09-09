@@ -11,6 +11,7 @@
          terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE). 
+-define(MAPMOD, mimetypes_map).
 
 -record(state, {
           mime_types,
@@ -202,6 +203,13 @@ aggregate_extensions_1([{Ext, Type1},{Ext, Type2}|Rest]) when is_list(Type1) ->
 aggregate_extensions_1([H|T]) ->
     [H|aggregate_extensions_1(T)].
 
+%% @private Load a list of mimetype-extension pairs.
+-spec load_mapping([{binary(), binary()}]) -> ok.
+load_mapping(Pairs) ->
+    Module = ?MAPMOD,
+    AbsCode = map_to_abstract(Module, Pairs),
+    compile_and_load_forms(AbsCode, []).
+
 
 %% @private Generate an abstract mimtype mapping module.
 -spec map_to_abstract(atom(), [{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
@@ -282,8 +290,7 @@ load_binary(Name, Binary) ->
 -include_lib("eunit/include/eunit.hrl").
 
 codegen_test() ->
-    AbsCode = map_to_abstract(mimetypes_map, [{<<"a">>, <<"b">>}]),
-    ok = compile_and_load_forms(AbsCode, []),
+    ok = load_mapping([{<<"a">>, <<"b">>}]),
     mimetypes_map:module_info(),
     ?assertEqual([<<"a">>], mimetypes_map:ext_to_mimes(<<"b">>)),
     ?assertEqual([<<"b">>], mimetypes_map:mime_to_exts(<<"a">>)).
