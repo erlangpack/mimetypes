@@ -86,6 +86,8 @@ init([]) ->
     S = binary_to_list(B),
     {ok, Tokens, _} = mimetypes_scan:string(S),
     {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
+    Mapping = extract_extensions(MimeTypes),
+    load_mapping(Mapping),
     Extensions = aggregate_extensions(extract_extensions(MimeTypes)),
     {ok, #state{
        mime_types = dict:from_list(MimeTypes),
