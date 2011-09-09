@@ -189,9 +189,7 @@ code_change(_OldVsn, State, _Extra) ->
 extract_extensions([]) ->
     [];
 extract_extensions([{Type, Exts}|Rest]) ->
-    lists:concat([
-                  [ {Ext, Type} || Ext <- Exts ],
-                  extract_extensions(Rest)]).
+    [{Ext, Type} || Ext <- Exts] ++ extract_extensions(Rest).
 
 aggregate_extensions(Exts) ->
     aggregate_extensions_1(lists:keysort(1, Exts)).
