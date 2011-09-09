@@ -250,7 +250,10 @@ ext_to_mimes_clauses(Pairs) ->
 %% @private Generate a set of mime_to_exts clauses.
 -spec mime_to_exts_clauses([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
 mime_to_exts_clauses(Pairs) ->
-    [].
+    Types = lists:usort([T || {T,_} <- Pairs]),
+    Groups = [{T, lists:usort([E || {U,E} <- Pairs, U =:= T])} || T <- Types],
+    [erl_syntax:clause([erl_syntax:abstract(T)], none, [erl_syntax:abstract(Es)])
+    || {T, Es} <- Groups].
 
 
 %% @private Compile and load a module.
@@ -282,6 +285,7 @@ codegen_test() ->
     AbsCode = map_to_abstract(mimetypes_map, [{<<"a">>, <<"b">>}]),
     ok = compile_and_load_forms(AbsCode, []),
     mimetypes_map:module_info(),
-    ?assertEqual([<<"a">>], mimetypes_map:ext_to_mimes(<<"b">>)).
+    ?assertEqual([<<"a">>], mimetypes_map:ext_to_mimes(<<"b">>)),
+    ?assertEqual([<<"b">>], mimetypes_map:mime_to_exts(<<"a">>)).
 
 -endif.
