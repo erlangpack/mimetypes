@@ -206,6 +206,11 @@ aggregate_extensions_1([H|T]) ->
 %% @private Generate an abstract mimtype mapping module.
 -spec map_to_abstract(atom(), [{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
 map_to_abstract(Module, Pairs) ->
+    [erl_syntax:revert(E) || E <- map_to_abstract_(Module, Pairs)].
+
+%% @private Generate an abstract mimtype mapping module.
+-spec map_to_abstract_(atom(), [{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
+map_to_abstract_(Module, Pairs) ->
     [%% -module(Module).
      erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
      %% -export([ext_to_mimes/1, mime_to_exts/1]).
@@ -254,3 +259,14 @@ load_binary(Name, Binary) ->
         {module, Name}  -> ok;
         {error, Reason} -> exit({error_loading_module, Name, Reason})
     end.
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+codegen_test() ->
+    AbsCode = map_to_abstract(mimetypes_map, []),
+    ok = compile_and_load_forms(AbsCode, []),
+    mimetypes_map:module_info().
+
+-endif.
