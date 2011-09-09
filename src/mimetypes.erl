@@ -203,6 +203,37 @@ aggregate_extensions_1([H|T]) ->
     [H|aggregate_extensions_1(T)].
 
 
+%% @private Generate an abstract mimtype mapping module.
+-spec map_to_abstract(atom(), [{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
+map_to_abstract(Module, Pairs) ->
+    [%% -module(Module).
+     erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
+     %% -export([ext_to_mimes/1, mime_to_exts/1]).
+     erl_syntax:attribute(
+       erl_syntax:atom(export),
+       [erl_syntax:list(
+         %% ext_to_mimes/1
+         [erl_syntax:arity_qualifier(
+            erl_syntax:atom(ext_to_mimes),
+            erl_syntax:integer(1)),
+          %% mime_to_exts/1
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(mime_to_exts),
+            erl_syntax:integer(1))])]),
+     %% ext_to_mimes(Extension) -> [MimeType].
+     erl_syntax:function(
+       erl_syntax:atom(ext_to_mimes),
+       [erl_syntax:clause(
+         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])]),
+     %% mime_to_exts(MimeType) -> [Extension].
+     erl_syntax:function(
+       erl_syntax:atom(mime_to_exts),
+       [erl_syntax:clause(
+         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])])].
+
+
+
+
 %% @private Compile and load a module.
 %% Copied from the meck_mod module of the meck project.
 -spec compile_and_load_forms(erlang_form(), compile_options()) -> ok.
