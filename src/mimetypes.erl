@@ -228,15 +228,29 @@ map_to_abstract_(Module, Pairs) ->
      %% ext_to_mimes(Extension) -> [MimeType].
      erl_syntax:function(
        erl_syntax:atom(ext_to_mimes),
+       ext_to_mimes_clauses(Pairs) ++
        [erl_syntax:clause(
-         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])]),
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])]),
      %% mime_to_exts(MimeType) -> [Extension].
      erl_syntax:function(
        erl_syntax:atom(mime_to_exts),
+       mime_to_exts_clauses(Pairs) ++
        [erl_syntax:clause(
          [erl_syntax:underscore()], none, [erl_syntax:abstract([])])])].
 
+%% @private Generate a set of ext_to_mimes clauses.
+-spec ext_to_mimes_clauses([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
+ext_to_mimes_clauses(Pairs) ->
+    Exts = lists:usort([E || {_,E} <- Pairs]),
+    Groups = [{E, lists:usort([T || {T,F} <- Pairs, F =:= E])} || E <- Exts],
+    [erl_syntax:clause([erl_syntax:abstract(E)], none, [erl_syntax:abstract(Ts)])
+    || {E, Ts} <- Groups].
 
+
+%% @private Generate a set of mime_to_exts clauses.
+-spec mime_to_exts_clauses([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
+mime_to_exts_clauses(Pairs) ->
+    [].
 
 
 %% @private Compile and load a module.
@@ -265,8 +279,9 @@ load_binary(Name, Binary) ->
 -include_lib("eunit/include/eunit.hrl").
 
 codegen_test() ->
-    AbsCode = map_to_abstract(mimetypes_map, []),
+    AbsCode = map_to_abstract(mimetypes_map, [{<<"a">>, <<"b">>}]),
     ok = compile_and_load_forms(AbsCode, []),
-    mimetypes_map:module_info().
+    mimetypes_map:module_info(),
+    ?assertEqual([<<"a">>], mimetypes_map:ext_to_mimes(<<"b">>)).
 
 -endif.
