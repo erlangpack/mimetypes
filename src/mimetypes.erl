@@ -40,10 +40,10 @@ extensions(Type) when is_binary(Type) ->
 
 
 types() ->    
-    gen_server:call(?SERVER, types).
+    ?MAPMOD:mimes().
 
 extensions() ->    
-    gen_server:call(?SERVER, extensions).
+    ?MAPMOD:exts().
     
 
 %%--------------------------------------------------------------------
@@ -241,7 +241,7 @@ map_to_abstract_(Module, Pairs) ->
             erl_syntax:integer(0)),
           %% mimes/0
           erl_syntax:arity_qualifier(
-            erl_syntax:atom(exts),
+            erl_syntax:atom(mimes),
             erl_syntax:integer(0))])]),
      %% ext_to_mimes(Extension) -> [MimeType].
      erl_syntax:function(
@@ -321,6 +321,8 @@ codegen_test() ->
     ok = load_mapping([{<<"b">>, <<"a">>}]),
     ?MAPMOD:module_info(),
     ?assertEqual([<<"a">>], ?MAPMOD:ext_to_mimes(<<"b">>)),
-    ?assertEqual([<<"b">>], ?MAPMOD:mime_to_exts(<<"a">>)).
+    ?assertEqual([<<"b">>], ?MAPMOD:mime_to_exts(<<"a">>)),
+    ?assertEqual([<<"b">>], ?MAPMOD:exts()),
+    ?assertEqual([<<"a">>], ?MAPMOD:mimes()).
 
 -endif.
