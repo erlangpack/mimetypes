@@ -17,6 +17,10 @@
           extensions
          }).
 
+-type erlang_form() :: term().
+-type compile_options() :: [term()].
+
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -198,3 +202,24 @@ aggregate_extensions_1([{Ext, Type1},{Ext, Type2}|Rest]) when is_list(Type1) ->
 aggregate_extensions_1([H|T]) ->
     [H|aggregate_extensions_1(T)].
 
+
+%% @private Compile and load a module.
+%% Copied from the meck_mod module of the meck project.
+-spec compile_and_load_forms(erlang_form(), compile_options()) -> ok.
+compile_and_load_forms(AbsCode, Opts) ->
+    case compile:forms(AbsCode, Opts) of
+        {ok, ModName, Binary} ->
+            load_binary(ModName, Binary);
+        {ok, ModName, Binary, _Warnings} ->
+            load_binary(ModName, Binary);
+        Error ->
+            exit({compile_forms, Error})
+    end.
+
+%% @private Load a module.
+%% Copied from the meck_mod module of the meck project.
+load_binary(Name, Binary) ->
+    case code:load_binary(Name, "", Binary) of
+        {module, Name}  -> ok;
+        {error, Reason} -> exit({error_loading_module, Name, Reason})
+    end.
