@@ -234,7 +234,15 @@ map_to_abstract_(Module, Pairs) ->
           %% mime_to_exts/1
           erl_syntax:arity_qualifier(
             erl_syntax:atom(mime_to_exts),
-            erl_syntax:integer(1))])]),
+            erl_syntax:integer(1)),
+          %% exts/0
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(exts),
+            erl_syntax:integer(0)),
+          %% mimes/0
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(exts),
+            erl_syntax:integer(0))])]),
      %% ext_to_mimes(Extension) -> [MimeType].
      erl_syntax:function(
        erl_syntax:atom(ext_to_mimes),
@@ -246,7 +254,11 @@ map_to_abstract_(Module, Pairs) ->
        erl_syntax:atom(mime_to_exts),
        mime_to_exts_clauses(Pairs) ++
        [erl_syntax:clause(
-         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])])].
+         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])]),
+     %% exts() -> [Extension].
+     erl_syntax:function(erl_syntax:atom(exts), [exts_clause(Pairs)]),
+     %% mimes() -> [MimeType].
+     erl_syntax:function(erl_syntax:atom(mimes), [mimes_clause(Pairs)])].
 
 %% @private Generate a set of ext_to_mimes clauses.
 -spec ext_to_mimes_clauses([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
@@ -264,6 +276,20 @@ mime_to_exts_clauses(Pairs) ->
     Groups = [{T, lists:usort([E || {E,U} <- Pairs, U =:= T])} || T <- Types],
     [erl_syntax:clause([erl_syntax:abstract(T)], none, [erl_syntax:abstract(Es)])
     || {T, Es} <- Groups].
+
+
+%% @private Generate a clause returning the set of extensions.
+-spec exts_clause([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
+exts_clause(Pairs) ->
+    Exts = lists:usort([E || {E,_} <- Pairs]),
+    erl_syntax:clause([], none, [erl_syntax:abstract(Exts)]).
+
+
+%% @private Generate a clause returning the set of mimetypes.
+-spec mimes_clause([{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
+mimes_clause(Pairs) ->
+    Types = lists:usort([T || {_,T} <- Pairs]),
+    erl_syntax:clause([], none, [erl_syntax:abstract(Types)]).
 
 
 %% @private Compile and load a module.
