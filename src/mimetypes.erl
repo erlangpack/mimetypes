@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, extension/1, filename/1, extensions/1,
+-export([module/0, start_link/0, extension/1, filename/1, extensions/1,
          types/0, extensions/0]).
 
 %% gen_server callbacks
@@ -22,6 +22,9 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+module() ->
+    ?MAPMOD.
 
 extension(Ext) ->
     ?MAPMOD:ext_to_mimes(iolist_to_binary(Ext)).
@@ -69,22 +72,27 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    case code:priv_dir(mimetypes) of
-        {error, bad_name} ->
-            File = filename:join([filename:dirname(code:which(?MODULE)),
-                                  "..",
-                                  "priv",
-                                  "mime.types"
-                                  ]);
-        Priv ->
-            File = filename:join(Priv, "mime.types")
+    case code:which(?MAPMOD) of
+        non_existing ->
+            case code:priv_dir(mimetypes) of
+                {error, bad_name} ->
+                    File = filename:join([filename:dirname(code:which(?MODULE)),
+                                          "..",
+                                          "priv",
+                                          "mime.types"
+                                         ]);
+                Priv ->
+                    File = filename:join(Priv, "mime.types")
+            end,
+            {ok, B} = file:read_file(File),
+            S = binary_to_list(B),
+            {ok, Tokens, _} = mimetypes_scan:string(S),
+            {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
+            Mapping = extract_extensions(MimeTypes),
+            load_mapping(Mapping);
+        _ ->
+            ok
     end,
-    {ok, B} = file:read_file(File),
-    S = binary_to_list(B),
-    {ok, Tokens, _} = mimetypes_scan:string(S),
-    {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
-    Mapping = extract_extensions(MimeTypes),
-    load_mapping(Mapping),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -257,17 +265,19 @@ mimes_clause(Pairs) ->
 compile_and_load_forms(AbsCode, Opts) ->
     case compile:forms(AbsCode, Opts) of
         {ok, ModName, Binary} ->
-            load_binary(ModName, Binary);
+            write_binary(ModName, Binary);
         {ok, ModName, Binary, _Warnings} ->
-            load_binary(ModName, Binary);
+            write_binary(ModName, Binary);
         Error ->
             exit({compile_forms, Error})
     end.
 
-%% @private Load a module.
-%% Copied from the meck_mod module of the meck project.
-load_binary(Name, Binary) ->
-    case code:load_binary(Name, "", Binary) of
+%% @private Write a module & load it.
+write_binary(Name, Binary) ->
+    Filename = filename:join([filename:dirname(code:which(?MODULE)),
+                              atom_to_list(Name) ++ ".beam"]),
+    file:write_file(Filename, Binary),
+    case code:ensure_loaded(Name) of
         {module, Name}  -> ok;
         {error, Reason} -> exit({error_loading_module, Name, Reason})
     end.
