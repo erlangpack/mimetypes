@@ -13,10 +13,7 @@
 -define(SERVER, ?MODULE). 
 -define(MAPMOD, mimetypes_map).
 
--record(state, {
-          mime_types,
-          extensions
-         }).
+-record(state, {}).
 
 -type erlang_form() :: term().
 -type compile_options() :: [term()].
@@ -88,11 +85,7 @@ init([]) ->
     {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
     Mapping = extract_extensions(MimeTypes),
     load_mapping(Mapping),
-    Extensions = aggregate_extensions(extract_extensions(MimeTypes)),
-    {ok, #state{
-       mime_types = dict:from_list(MimeTypes),
-       extensions = dict:from_list(Extensions)
-      }}.
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -108,29 +101,8 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({extension, Ext}, _From, #state{ extensions = Exts } = State) ->
-    case dict:is_key(Ext, Exts) of
-        false ->
-            Reply = undefined;
-        true ->
-            Reply = dict:fetch(Ext, Exts)
-    end,
-    {reply, Reply, State};
-
-handle_call({extensions, Type}, _From, #state{ mime_types = Types } = State) ->
-    case dict:is_key(Type, Types) of
-        false ->
-            Reply = undefined;
-        true ->
-            Reply = dict:fetch(Type, Types)
-    end,
-    {reply, Reply, State};
-
-handle_call(types, _From, #state{ mime_types = Types } = State) ->
-    {reply, dict:fetch_keys(Types), State};
-
-handle_call(extensions, _From, #state{ extensions = Exts } = State) ->
-    {reply, dict:fetch_keys(Exts), State}.
+handle_call(_Msg, _From, State) ->
+    {reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -191,17 +163,6 @@ extract_extensions([]) ->
 extract_extensions([{Type, Exts}|Rest]) ->
     [{Ext, Type} || Ext <- Exts] ++ extract_extensions(Rest).
 
-aggregate_extensions(Exts) ->
-    aggregate_extensions_1(lists:keysort(1, Exts)).
-
-aggregate_extensions_1([]) ->
-    [];
-aggregate_extensions_1([{Ext, Type1},{Ext, Type2}|Rest]) when is_binary(Type1) ->
-    [{Ext, [Type1,Type2]}|aggregate_extensions_1(Rest)];
-aggregate_extensions_1([{Ext, Type1},{Ext, Type2}|Rest]) when is_list(Type1) ->
-    [{Ext, [Type1|[Type2]]}|aggregate_extensions_1(Rest)];
-aggregate_extensions_1([H|T]) ->
-    [H|aggregate_extensions_1(T)].
 
 %% @private Load a list of mimetype-extension pairs.
 -spec load_mapping([{binary(), binary()}]) -> ok.
