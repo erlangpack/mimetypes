@@ -207,13 +207,13 @@ map_to_abstract_(Module, Pairs) ->
        erl_syntax:atom(ext_to_mimes),
        ext_to_mimes_clauses(Pairs) ++
        [erl_syntax:clause(
-         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])]),
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(undefined)])]),
      %% mime_to_exts(MimeType) -> [Extension].
      erl_syntax:function(
        erl_syntax:atom(mime_to_exts),
        mime_to_exts_clauses(Pairs) ++
        [erl_syntax:clause(
-         [erl_syntax:underscore()], none, [erl_syntax:abstract([])])]),
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(undefined)])]),
      %% exts() -> [Extension].
      erl_syntax:function(erl_syntax:atom(exts), [exts_clause(Pairs)]),
      %% mimes() -> [MimeType].
