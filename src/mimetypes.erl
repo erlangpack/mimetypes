@@ -122,7 +122,9 @@ init([]) ->
             {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
             Mapping = extract_extensions(MimeTypes),
             load_mapping(Mapping),
-            load_dispatch([{default, ?MAPMOD}]);
+            Dispatch = ets:select(?MODTABLE, [{
+                #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
+            load_dispatch(Dispatch);
         _ ->
             ok
     end,
