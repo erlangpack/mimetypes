@@ -121,7 +121,7 @@ init([]) ->
             {ok, Tokens, _} = mimetypes_scan:string(S),
             {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
             Mapping = extract_extensions(MimeTypes),
-            load_mapping(Mapping),
+            load_mapping(?MAPMOD, Mapping),
             Dispatch = ets:select(?MODTABLE, [{
                 #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
             load_dispatch(Dispatch);
@@ -208,9 +208,8 @@ extract_extensions([{Type, Exts}|Rest]) ->
 
 
 %% @private Load a list of mimetype-extension pairs.
--spec load_mapping([{binary(), binary()}]) -> ok.
-load_mapping(Pairs) ->
-    Module = ?MAPMOD,
+-spec load_mapping(atom(), [{binary(), binary()}]) -> ok.
+load_mapping(Module, Pairs) ->
     AbsCode = map_to_abstract(Module, Pairs),
     compile_and_load_forms(AbsCode, []).
 
@@ -429,7 +428,7 @@ write_binary(Name, Binary) ->
 -include_lib("eunit/include/eunit.hrl").
 
 codegen_test() ->
-    ok = load_mapping([{<<"b">>, <<"a">>}]),
+    ok = load_mapping(?MAPMOD, [{<<"b">>, <<"a">>}]),
     ?MAPMOD:module_info(),
     ?assertEqual([<<"a">>], ?MAPMOD:ext_to_mimes(<<"b">>)),
     ?assertEqual([<<"b">>], ?MAPMOD:mime_to_exts(<<"a">>)),
@@ -437,7 +436,7 @@ codegen_test() ->
     ?assertEqual([<<"a">>], ?MAPMOD:mimes()).
 
 dispatch_test() ->
-    ok = load_mapping([{<<"b">>, <<"a">>}]),
+    ok = load_mapping(?MAPMOD, [{<<"b">>, <<"a">>}]),
     ok = load_dispatch([{default, ?MAPMOD}]),
     ?assertEqual([<<"a">>], ?DISPMOD:ext_to_mimes(<<"b">>, default)),
     ?assertEqual([<<"b">>], ?DISPMOD:mime_to_exts(<<"a">>, default)),
