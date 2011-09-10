@@ -28,7 +28,7 @@ module() ->
     ?MAPMOD.
 
 extension(Ext) ->
-    ?MAPMOD:ext_to_mimes(iolist_to_binary(Ext)).
+    ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default).
 
 filename(Filename) ->
     "." ++ Ext = filename:extension(Filename),
@@ -37,14 +37,14 @@ filename(Filename) ->
 extensions(Types) when is_list(Types) ->
     lists:usort(lists:flatten([ extensions(Type) || Type <- Types ]));
 extensions(Type) when is_binary(Type) ->
-    ?MAPMOD:mime_to_exts(iolist_to_binary(Type)).
+    ?DISPMOD:mime_to_exts(iolist_to_binary(Type), default).
 
 
 types() ->    
-    ?MAPMOD:mimes().
+    ?DISPMOD:mimes(default).
 
 extensions() ->    
-    ?MAPMOD:exts().
+    ?DISPMOD:exts(default).
     
 
 %%--------------------------------------------------------------------
@@ -90,7 +90,8 @@ init([]) ->
             {ok, Tokens, _} = mimetypes_scan:string(S),
             {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
             Mapping = extract_extensions(MimeTypes),
-            load_mapping(Mapping);
+            load_mapping(Mapping),
+            load_dispatch([{default, ?MAPMOD}]);
         _ ->
             ok
     end,
