@@ -13,6 +13,17 @@
 -define(SERVER, ?MODULE). 
 -define(MAPMOD, mimetypes_map).
 -define(DISPMOD, mimetypes_disp).
+-define(TABLE, mimetypes_data).
+-define(MODTABLE, mimetypes_modules).
+
+-record(map_info, {
+    db :: term(),
+    ext :: binary(),
+    mime :: binary()}).
+
+-record(db_info, {
+    db :: term(),
+    mod :: atom()}).
 
 -record(state, {}).
 
@@ -55,6 +66,26 @@ extensions() ->
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
+    %% The database index table should be owned by the mimetypes supervisor.
+    %% This ensures that the table is not destroyed before the application
+    %% crashes.
+    case ets:info(?TABLE) of
+        undefined ->
+            ets:new(?TABLE, [
+                named_table,public,bag,
+                {keypos, #map_info.db}]);
+        _ ->
+            ignore
+    end,
+    case ets:info(?MODTABLE) of
+        undefined ->
+            ets:new(?MODTABLE, [
+                named_table,public,set,
+                {keypos, #db_info.db}]),
+            ets:insert(?MODTABLE, #db_info{db=default, mod=?MAPMOD});
+        _ ->
+            ignore
+    end,
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%%===================================================================
