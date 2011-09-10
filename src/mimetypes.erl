@@ -28,7 +28,8 @@
 
 -record(db_info, {
     db :: term(),
-    mod :: atom()}).
+    mod :: atom(),
+    vsn :: integer()}).
 
 -record(state, {}).
 
@@ -126,8 +127,7 @@ start_link() ->
         undefined ->
             ets:new(?MODTABLE, [
                 named_table,public,set,
-                {keypos, #db_info.db}]),
-            ets:insert(?MODTABLE, #db_info{db=default, mod=?MAPMOD});
+                {keypos, #db_info.db}]);
         _ ->
             ignore
     end,
@@ -166,13 +166,14 @@ init([]) ->
             {ok, Tokens, _} = mimetypes_scan:string(S),
             {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
             Mapping = extract_extensions(MimeTypes),
-            load_mapping(?MAPMOD, Mapping),
-            Dispatch = ets:select(?MODTABLE, [{
-                #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
-            load_dispatch(Dispatch);
+            load_mapping(?MAPMOD, Mapping);
         _ ->
             ok
     end,
+    Vsn = module_version(?MAPMOD),
+    ets:insert(?MODTABLE, #db_info{db=default, mod=?MAPMOD, vsn=Vsn}),
+    load_dispatch(lookup_dispatch()),
+    [reload_mapping(Name) || {Name,_} <- lookup_dispatch()],
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -194,11 +195,9 @@ handle_call({create, Database}, _From, State) ->
         true ->
             {reply, exists, State};
         false ->
-            Dispatch = ets:select(?MODTABLE, [{
-                #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
             Index = ets:info(?MODTABLE, size),
             Module = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
-            NewDispatch = [{Database, Module}|Dispatch],
+            NewDispatch = [{Database, Module}|lookup_dispatch()],
             ok = load_mapping(Module, []),
             ok = load_dispatch(NewDispatch),
             ets:insert(?MODTABLE, #db_info{db=Database, mod=Module}),
@@ -210,10 +209,7 @@ handle_call({load, DB, Mappings}, _From, State) ->
         [] ->
             {reply, noexists, State};
         [#db_info{mod=Module}] ->
-            PrevPairs = ets:select(?TABLE, [{
-                #map_info{db='$1',ext='$2',mime='$3'},
-                [{'=:=','$1',{const,DB}}], [{{'$2','$3'}}]}]),
-            NewPairs = Mappings ++ PrevPairs,
+            NewPairs = Mappings ++ lookup_mappings(DB),
             ok = load_mapping(Module, NewPairs),
             ets:insert(?TABLE, [
                 #map_info{db=DB, ext=E, mime=M} || {E,M} <- Mappings]),
@@ -281,6 +277,19 @@ extract_extensions([]) ->
     [];
 extract_extensions([{Type, Exts}|Rest]) ->
     [{Ext, Type} || Ext <- Exts] ++ extract_extensions(Rest).
+
+
+%% @private Reload a mapping module.
+%% If the module version of the loaded module is equal to the last known
+%% stable version of a module the module is not recompiled.
+-spec reload_mapping(term()) -> ok.
+reload_mapping(Database) ->
+    Module = ets:lookup_element(?MODTABLE, Database, #db_info.mod),
+    Vsn = ets:lookup_element(?MODTABLE, Database, #db_info.vsn),
+    case module_version(Module) of
+        Vsn -> ok;
+        _ -> load_mapping(Module, lookup_mappings(Database))
+    end.
 
 
 %% @private Load a list of mimetype-extension pairs.
@@ -500,6 +509,24 @@ write_binary(Name, Binary) ->
         {error, Reason} -> exit({error_loading_module, Name, Reason})
     end.
 
+%% @private Return the version number of a module.
+-spec module_version(atom()) -> integer().
+module_version(Name) ->
+    Attrs = Name:module_info(attributes),
+    {vsn, [Vsn]} = lists:keyfind(vsn, 1, Attrs),
+    Vsn.
+
+%% @private
+-spec lookup_dispatch() -> [{term(), atom()}].
+lookup_dispatch() ->
+    ets:select(?MODTABLE, [{#db_info{db='$1',mod='$2', vsn='_'}, [], [{{'$1','$2'}}]}]).
+
+%% @private
+-spec lookup_mappings(term()) -> [{binary(), binary()}].
+lookup_mappings(Database) ->
+    ets:select(?TABLE, [{
+        #map_info{db='$1',ext='$2',mime='$3'},
+        [{'=:=','$1',{const,Database}}], [{{'$2','$3'}}]}]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
