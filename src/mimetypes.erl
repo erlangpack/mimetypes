@@ -190,15 +190,20 @@ init([]) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_call({create, Database}, _From, State) ->
-    Dispatch = ets:select(?MODTABLE, [{
-        #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
-    Index = ets:info(?MODTABLE, size),
-    Module = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
-    NewDispatch = [{Database, Module}|Dispatch],
-    ok = load_mapping(Module, []),
-    ok = load_dispatch(NewDispatch),
-    ets:insert(?MODTABLE, #db_info{db=Database, mod=Module}),
-    {reply, ok, State};
+    case ets:member(?MODTABLE, Database) of
+        true ->
+            {reply, exists, State};
+        false ->
+            Dispatch = ets:select(?MODTABLE, [{
+                #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
+            Index = ets:info(?MODTABLE, size),
+            Module = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
+            NewDispatch = [{Database, Module}|Dispatch],
+            ok = load_mapping(Module, []),
+            ok = load_dispatch(NewDispatch),
+            ets:insert(?MODTABLE, #db_info{db=Database, mod=Module}),
+            {reply, ok, State}
+    end;
 
 handle_call({load, DB, Mappings}, _From, State) ->
     Module = case ets:lookup(?MODTABLE, DB) of
@@ -539,6 +544,7 @@ test_create() ->
     ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m1">>}]),
     ?assertEqual([<<"m1">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
     ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m2">>}]),
-    ?assertEqual([<<"m1">>,<<"m2">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)).
+    ?assertEqual([<<"m1">>,<<"m2">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
+    ?assertEqual(exists, mimetypes:create(test_db_1)).
 
 -endif.
