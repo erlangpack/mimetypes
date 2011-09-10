@@ -7,6 +7,7 @@
          types/0, extensions/0]).
 
 %% API - multiple databases
+-export([create/1, load/2]).
 -export([ext_to_mimes/1, ext_to_mimes/2]).
 -export([mime_to_exts/1, mime_to_exts/2]).
 
@@ -60,6 +61,19 @@ types() ->
 
 extensions() ->    
     ?DISPMOD:exts(default).
+
+
+%% @doc Create a new database of extension-mimetype mappings.
+%% The name 'default' is reserved.
+%% @end
+-spec create(term()) -> ok.
+create(Database) when Database =/= default ->
+    gen_server:call(?SERVER, {create, Database}).
+
+%% @doc Load a set of extension-mimetype mappings.
+-spec load(term(), [{binary(), binary()}]) -> ok.
+load(Database, Mappings) ->
+    gen_server:call(?SERVER, {load, Database, Mappings}).
 
 
 %% @doc Return the set of known mimetypes of an extension.
@@ -175,6 +189,29 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call({create, Database}, _From, State) ->
+    Dispatch = ets:select(?MODTABLE, [{
+        #db_info{db='$1',mod='$2'}, [], [{{'$1','$2'}}]}]),
+    Index = ets:info(?MODTABLE, size),
+    Module = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
+    NewDispatch = [{Database, Module}|Dispatch],
+    ok = load_mapping(Module, []),
+    ok = load_dispatch(NewDispatch),
+    ets:insert(?MODTABLE, #db_info{db=Database, mod=Module}),
+    {reply, ok, State};
+
+handle_call({load, DB, Mappings}, _From, State) ->
+    Module = case ets:lookup(?MODTABLE, DB) of
+        [#db_info{mod=Mod}] -> Mod
+    end,
+    PrevPairs = ets:select(?TABLE, [{
+        #map_info{db='$1',ext='$2',mime='$3'},
+        [{'=:=','$1',{const,DB}}], [{{'$2','$3'}}]}]),
+    NewPairs = Mappings ++ PrevPairs,
+    ok = load_mapping(Module, NewPairs),
+    ets:insert(?TABLE, [#map_info{db=DB, ext=E, mime=M} || {E,M} <- Mappings]),
+    {reply, ok, State};
+
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
@@ -449,7 +486,8 @@ write_binary(Name, Binary) ->
     Filename = filename:join([filename:dirname(code:which(?MODULE)),
                               atom_to_list(Name) ++ ".beam"]),
     file:write_file(Filename, Binary),
-    case code:ensure_loaded(Name) of
+    code:purge(Name),
+    case code:load_file(Name) of
         {module, Name}  -> ok;
         {error, Reason} -> exit({error_loading_module, Name, Reason})
     end.
@@ -489,5 +527,18 @@ multi_test() ->
     ?assertEqual([<<"b">>], mimetypes:mime_to_exts(<<"a">>, default)),
     ?assertEqual([<<"b">>], mimetypes:mime_to_exts("a")),
     ?assertEqual([<<"b">>], mimetypes:mime_to_exts("a", default)).
+
+create_test_() ->
+    {setup,local,
+        fun() -> application:start(mimetypes) end,
+        fun(_) -> application:stop(mimetypes) end,
+        [?_test(test_create())]}.
+
+test_create() ->
+    ok = mimetypes:create(test_db_1),
+    ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m1">>}]),
+    ?assertEqual([<<"m1">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
+    ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m2">>}]),
+    ?assertEqual([<<"m1">>,<<"m2">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)).
 
 -endif.
