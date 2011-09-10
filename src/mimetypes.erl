@@ -206,16 +206,19 @@ handle_call({create, Database}, _From, State) ->
     end;
 
 handle_call({load, DB, Mappings}, _From, State) ->
-    Module = case ets:lookup(?MODTABLE, DB) of
-        [#db_info{mod=Mod}] -> Mod
-    end,
-    PrevPairs = ets:select(?TABLE, [{
-        #map_info{db='$1',ext='$2',mime='$3'},
-        [{'=:=','$1',{const,DB}}], [{{'$2','$3'}}]}]),
-    NewPairs = Mappings ++ PrevPairs,
-    ok = load_mapping(Module, NewPairs),
-    ets:insert(?TABLE, [#map_info{db=DB, ext=E, mime=M} || {E,M} <- Mappings]),
-    {reply, ok, State};
+    case ets:lookup(?MODTABLE, DB) of
+        [] ->
+            {reply, noexists, State};
+        [#db_info{mod=Module}] ->
+            PrevPairs = ets:select(?TABLE, [{
+                #map_info{db='$1',ext='$2',mime='$3'},
+                [{'=:=','$1',{const,DB}}], [{{'$2','$3'}}]}]),
+            NewPairs = Mappings ++ PrevPairs,
+            ok = load_mapping(Module, NewPairs),
+            ets:insert(?TABLE, [
+                #map_info{db=DB, ext=E, mime=M} || {E,M} <- Mappings]),
+            {reply, ok, State}
+    end;
 
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
@@ -540,6 +543,7 @@ create_test_() ->
         [?_test(test_create())]}.
 
 test_create() ->
+    noexists = mimetypes:load(test_db_1, []),
     ok = mimetypes:create(test_db_1),
     ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m1">>}]),
     ?assertEqual([<<"m1">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
