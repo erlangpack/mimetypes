@@ -403,6 +403,15 @@ codegen_test() ->
     ?assertEqual([<<"a">>], ?MAPMOD:mimes()).
 
 dispatch_test() ->
-    ok = load_dispatch([{default, ?MAPMOD}]).
+    ok = load_mapping([{<<"b">>, <<"a">>}]),
+    ok = load_dispatch([{default, ?MAPMOD}]),
+    ?assertEqual([<<"a">>], ?DISPMOD:ext_to_mimes(<<"b">>, default)),
+    ?assertEqual([<<"b">>], ?DISPMOD:mime_to_exts(<<"a">>, default)),
+    ?assertEqual([<<"b">>], ?DISPMOD:exts(default)),
+    ?assertEqual([<<"a">>], ?DISPMOD:mimes(default)),
+    ?assertEqual(error, ?DISPMOD:ext_to_mimes(<<"b">>, nodb)),
+    ?assertEqual(error, ?DISPMOD:mime_to_exts(<<"a">>, nodb)),
+    ?assertEqual(error, ?DISPMOD:exts(nodb)),
+    ?assertEqual(error, ?DISPMOD:mimes(nodb)).
 
 -endif.
