@@ -2,9 +2,13 @@
 
 -behaviour(gen_server).
 
-%% API
+%% API - original
 -export([module/0, start_link/0, extension/1, filename/1, extensions/1,
          types/0, extensions/0]).
+
+%% API - multiple databases
+-export([ext_to_mimes/1, ext_to_mimes/2]).
+-export([mime_to_exts/1, mime_to_exts/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -56,6 +60,33 @@ types() ->
 
 extensions() ->    
     ?DISPMOD:exts(default).
+
+
+%% @doc Return the set of known mimetypes of an extension.
+%% @equiv ext_to_mimes(Extension, default)
+%% @end
+-spec ext_to_mimes(string() | binary()) -> [binary()].
+ext_to_mimes(Extension) ->
+    ?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), default).
+
+%% @doc Return the set of known mimetypes of an extension.
+%% @end
+-spec ext_to_mimes(string() | binary(), term()) -> [binary()].
+ext_to_mimes(Extension, Database) ->
+    ?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), Database).
+
+%% @doc Return the set of known extensions of a mimetype.
+%% @equiv mime_to_exts(MimeType, default)
+%% @end
+-spec mime_to_exts(string() | binary()) -> [binary()].
+mime_to_exts(MimeType) ->
+    ?DISPMOD:mime_to_exts(iolist_to_binary(MimeType), default).
+
+%% @doc Return the set of known extensions of a mimetype.
+%% @end
+-spec mime_to_exts(string() | binary(), term()) -> [binary()].
+mime_to_exts(MimeType, Database) ->
+    ?DISPMOD:mime_to_exts(iolist_to_binary(MimeType), Database).
     
 
 %%--------------------------------------------------------------------
@@ -446,5 +477,17 @@ dispatch_test() ->
     ?assertEqual(error, ?DISPMOD:mime_to_exts(<<"a">>, nodb)),
     ?assertEqual(error, ?DISPMOD:exts(nodb)),
     ?assertEqual(error, ?DISPMOD:mimes(nodb)).
+
+multi_test() ->
+    ok = load_mapping(?MAPMOD, [{<<"b">>, <<"a">>}]),
+    ok = load_dispatch([{default, ?MAPMOD}]),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes(<<"b">>)),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes(<<"b">>, default)),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes("b")),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes("b", default)),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts(<<"a">>)),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts(<<"a">>, default)),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts("a")),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts("a", default)).
 
 -endif.
