@@ -12,6 +12,7 @@
 
 -define(SERVER, ?MODULE). 
 -define(MAPMOD, mimetypes_map).
+-define(DISPMOD, mimetypes_disp).
 
 -record(state, {}).
 
@@ -179,6 +180,113 @@ load_mapping(Pairs) ->
     AbsCode = map_to_abstract(Module, Pairs),
     compile_and_load_forms(AbsCode, []).
 
+%% @private Load a list of database-module pairs.
+-spec load_dispatch([{term(), atom()}]) -> ok.
+load_dispatch(Pairs) ->
+    Module = ?DISPMOD,
+    AbsCode = disp_to_abstract(Module, Pairs),
+    compile_and_load_forms(AbsCode, []).
+
+%% @private Generate an abstract dispatch module.
+-spec disp_to_abstract(atom(), [{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_to_abstract(Module, Dispatch) ->
+    [erl_syntax:revert(E) || E <- disp_to_abstract_(Module, Dispatch)].
+
+%% @private Generate an abstract dispatch module.
+-spec disp_to_abstract_(atom(), [{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_to_abstract_(Module, Dispatch) ->
+    [%% -module(Module)
+     erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
+     %% -export([ext_to_mimes/2, mime_to_exts/2, exts/1, mimes/1]).
+     erl_syntax:attribute(
+       erl_syntax:atom(export),
+       [erl_syntax:list(
+         %% ext_to_mimes/2
+         [erl_syntax:arity_qualifier(
+            erl_syntax:atom(ext_to_mimes),
+            erl_syntax:integer(2)),
+          %% mime_to_exts/2
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(mime_to_exts),
+            erl_syntax:integer(2)),
+          %% exts/1
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(exts),
+            erl_syntax:integer(1)),
+          %% mimes/1
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(mimes),
+            erl_syntax:integer(1))])]),
+     %% ext_to_mimes(Extension, Database) -> [MimeType].
+     erl_syntax:function(
+       erl_syntax:atom(ext_to_mimes),
+       disp_ext_to_mimes_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore(), erl_syntax:underscore()],
+           none, [erl_syntax:abstract(error)])]),
+     %% mime_to_exts(MimeType, Database) -> [Extension].
+     erl_syntax:function(
+       erl_syntax:atom(mime_to_exts),
+       disp_mime_to_exts_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore(), erl_syntax:underscore()],
+           none, [erl_syntax:abstract(error)])]),
+     %% exts(Database) -> [Extension].
+     erl_syntax:function(
+       erl_syntax:atom(exts),
+       disp_exts_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])]),
+     %% mimes(Database) -> [MimeType].
+     erl_syntax:function(
+       erl_syntax:atom(mimes),
+       disp_mimes_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])])].
+
+%% @private Generate a set of ext_to_mimes clauses.
+-spec disp_ext_to_mimes_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_ext_to_mimes_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:variable("Ext"), erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M),
+          erl_syntax:atom(ext_to_mimes),
+          [erl_syntax:variable("Ext")])])
+    || {D, M} <- Dispatch].
+
+
+%% @private Generate a set of mime_to_exts clauses.
+-spec disp_mime_to_exts_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_mime_to_exts_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:variable("Type"), erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M),
+          erl_syntax:atom(mime_to_exts),
+          [erl_syntax:variable("Type")])])
+    || {D, M} <- Dispatch].
+
+%% @private Generate a set of exts clauses.
+-spec disp_exts_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_exts_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M), erl_syntax:atom(exts), [])])
+    || {D, M} <- Dispatch].
+
+
+
+%% @private Generate a set of mimes clauses.
+-spec disp_mimes_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_mimes_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M), erl_syntax:atom(mimes), [])])
+    || {D, M} <- Dispatch].
+
 
 %% @private Generate an abstract mimtype mapping module.
 -spec map_to_abstract(atom(), [{binary(), binary()}]) -> [erl_syntax:syntaxTree()].
@@ -190,7 +298,7 @@ map_to_abstract(Module, Pairs) ->
 map_to_abstract_(Module, Pairs) ->
     [%% -module(Module).
      erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-     %% -export([ext_to_mimes/1, mime_to_exts/1]).
+     %% -export([ext_to_mimes/1, mime_to_exts/1, exts/0, mimes/0]).
      erl_syntax:attribute(
        erl_syntax:atom(export),
        [erl_syntax:list(
@@ -293,5 +401,8 @@ codegen_test() ->
     ?assertEqual([<<"b">>], ?MAPMOD:mime_to_exts(<<"a">>)),
     ?assertEqual([<<"b">>], ?MAPMOD:exts()),
     ?assertEqual([<<"a">>], ?MAPMOD:mimes()).
+
+dispatch_test() ->
+    ok = load_dispatch([{default, ?MAPMOD}]).
 
 -endif.
