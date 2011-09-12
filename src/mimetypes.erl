@@ -18,23 +18,11 @@
 -define(SERVER, ?MODULE). 
 -define(MAPMOD, mimetypes_map).
 -define(DISPMOD, mimetypes_disp).
--define(TABLE, mimetypes_data).
--define(MODTABLE, mimetypes_modules).
-
--record(map_info, {
-    db :: term(),
-    ext :: binary(),
-    mime :: binary()}).
-
--record(db_info, {
-    db :: term(),
-    mod :: atom(),
-    vsn :: integer()}).
-
--record(state, {}).
 
 -type erlang_form() :: term().
 -type compile_options() :: [term()].
+
+-record(state, {}).
 
 
 %%%===================================================================
@@ -112,25 +100,6 @@ mime_to_exts(MimeType, Database) ->
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    %% The database index table should be owned by the mimetypes supervisor.
-    %% This ensures that the table is not destroyed before the application
-    %% crashes.
-    case ets:info(?TABLE) of
-        undefined ->
-            ets:new(?TABLE, [
-                named_table,public,bag,
-                {keypos, #map_info.db}]);
-        _ ->
-            ignore
-    end,
-    case ets:info(?MODTABLE) of
-        undefined ->
-            ets:new(?MODTABLE, [
-                named_table,public,set,
-                {keypos, #db_info.db}]);
-        _ ->
-            ignore
-    end,
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%%===================================================================
@@ -166,14 +135,11 @@ init([]) ->
             {ok, Tokens, _} = mimetypes_scan:string(S),
             {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
             Mapping = extract_extensions(MimeTypes),
-            load_mapping(?MAPMOD, Mapping);
+            ok = write_dispatch([{default, ?MAPMOD}]),
+            ok = write_mapping(?MAPMOD, Mapping);
         _ ->
             ok
     end,
-    Vsn = module_version(?MAPMOD),
-    ets:insert(?MODTABLE, #db_info{db=default, mod=?MAPMOD, vsn=Vsn}),
-    load_dispatch(lookup_dispatch()),
-    [reload_mapping(Name) || {Name,_} <- lookup_dispatch()],
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -190,29 +156,31 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({create, Database}, _From, State) ->
-    case ets:member(?MODTABLE, Database) of
-        true ->
+handle_call({create, Name}, _From, State) ->
+    Modules = ?DISPMOD:modules(),
+    case lists:keyfind(Name, 1, Modules) of
+        {_, _} ->
             {reply, exists, State};
         false ->
-            Index = ets:info(?MODTABLE, size),
-            Module = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
-            NewDispatch = [{Database, Module}|lookup_dispatch()],
-            ok = load_mapping(Module, []),
-            ok = load_dispatch(NewDispatch),
-            ets:insert(?MODTABLE, #db_info{db=Database, mod=Module}),
+            Index = length(Modules),
+            Mod = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
+            NewMods = [{Name,Mod}|Modules],
+            ok = load_dispatch(NewMods),
+            ok = load_mapping(Mod, []),
             {reply, ok, State}
     end;
 
-handle_call({load, DB, Mappings}, _From, State) ->
-    case ets:lookup(?MODTABLE, DB) of
-        [] ->
+handle_call({load, Name, New}, _From, #state{}=State) ->
+    Modules = ?DISPMOD:modules(),
+    case lists:keyfind(Name, 1, Modules) of
+        false ->
             {reply, noexists, State};
-        [#db_info{mod=Module}] ->
-            NewPairs = Mappings ++ lookup_mappings(DB),
-            ok = load_mapping(Module, NewPairs),
-            ets:insert(?TABLE, [
-                #map_info{db=DB, ext=E, mime=M} || {E,M} <- Mappings]),
+        {_, Mod} ->
+            Exts = Mod:exts(),
+            E2MS = fun(E) -> Mod:ext_to_mimes(E) end,
+            Prev = lists:flatten([[{E,T} || T <- E2MS(E)] || E <- Exts]),
+            Pairs = lists:usort(Prev ++ New),
+            ok = load_mapping(Mod, Pairs),
             {reply, ok, State}
     end;
 
@@ -279,31 +247,39 @@ extract_extensions([{Type, Exts}|Rest]) ->
     [{Ext, Type} || Ext <- Exts] ++ extract_extensions(Rest).
 
 
-%% @private Reload a mapping module.
-%% If the module version of the loaded module is equal to the last known
-%% stable version of a module the module is not recompiled.
--spec reload_mapping(term()) -> ok.
-reload_mapping(Database) ->
-    Module = ets:lookup_element(?MODTABLE, Database, #db_info.mod),
-    Vsn = ets:lookup_element(?MODTABLE, Database, #db_info.vsn),
-    case module_version(Module) of
-        Vsn -> ok;
-        _ -> load_mapping(Module, lookup_mappings(Database))
-    end.
-
-
 %% @private Load a list of mimetype-extension pairs.
 -spec load_mapping(atom(), [{binary(), binary()}]) -> ok.
 load_mapping(Module, Pairs) ->
     AbsCode = map_to_abstract(Module, Pairs),
-    compile_and_load_forms(AbsCode, []).
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = load_binary(Module, Binary).
+
+%% @private Write a list of mimetype-extension pairs.
+%% The function should be called during pre-compilation when no module is
+%% available for the default set of mimetype-extension paris.
+-spec write_mapping(atom(), [{binary(), binary()}]) -> ok.
+write_mapping(Module, Pairs) ->
+    AbsCode = map_to_abstract(Module, Pairs),
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = write_binary(Module, Binary),
+    ok = load_binary(Module, Binary).
 
 %% @private Load a list of database-module pairs.
 -spec load_dispatch([{term(), atom()}]) -> ok.
 load_dispatch(Pairs) ->
     Module = ?DISPMOD,
     AbsCode = disp_to_abstract(Module, Pairs),
-    compile_and_load_forms(AbsCode, []).
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = load_binary(Module, Binary).
+
+%% @private Write a list of database-module pairs.
+-spec write_dispatch([{term(), atom()}]) -> ok.
+write_dispatch(Pairs) ->
+    Module = ?DISPMOD,
+    AbsCode = disp_to_abstract(Module, Pairs),
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = write_binary(Module, Binary),
+    ok = load_binary(Module, Binary).
 
 %% @private Generate an abstract dispatch module.
 -spec disp_to_abstract(atom(), [{term(), atom()}]) -> [erl_syntax:syntaxTree()].
@@ -315,7 +291,7 @@ disp_to_abstract(Module, Dispatch) ->
 disp_to_abstract_(Module, Dispatch) ->
     [%% -module(Module)
      erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-     %% -export([ext_to_mimes/2, mime_to_exts/2, exts/1, mimes/1]).
+     %% -export([ext_to_mimes/2, mime_to_exts/2, exts/1, mimes/1, modules/0]).
      erl_syntax:attribute(
        erl_syntax:atom(export),
        [erl_syntax:list(
@@ -334,7 +310,11 @@ disp_to_abstract_(Module, Dispatch) ->
           %% mimes/1
           erl_syntax:arity_qualifier(
             erl_syntax:atom(mimes),
-            erl_syntax:integer(1))])]),
+            erl_syntax:integer(1)),
+          %% modules/0
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(modules),
+            erl_syntax:integer(0))])]),
      %% ext_to_mimes(Extension, Database) -> [MimeType].
      erl_syntax:function(
        erl_syntax:atom(ext_to_mimes),
@@ -360,7 +340,11 @@ disp_to_abstract_(Module, Dispatch) ->
        erl_syntax:atom(mimes),
        disp_mimes_clauses(Dispatch) ++
        [erl_syntax:clause(
-         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])])].
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])]),
+     %% modules() -> [{Name, Mod}].
+     erl_syntax:function(
+       erl_syntax:atom(modules),
+       [erl_syntax:clause([], none, [erl_syntax:abstract(Dispatch)])])].
 
 %% @private Generate a set of ext_to_mimes clauses.
 -spec disp_ext_to_mimes_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
@@ -485,48 +469,45 @@ mimes_clause(Pairs) ->
     erl_syntax:clause([], none, [erl_syntax:abstract(Types)]).
 
 
-%% @private Compile and load a module.
-%% Copied from the meck_mod module of the meck project.
--spec compile_and_load_forms(erlang_form(), compile_options()) -> ok.
-compile_and_load_forms(AbsCode, Opts) ->
+%% @private Compile a module.
+%% We defer loading of the modules until later. This way we can create new
+%% mapping modules as a small atomic-ish transaction. If we load the dispatch
+%% module before the new mapping module we will never loose a reference to a
+%% mapping module, the weird case occurs when we crash before the new mapping
+%% module is loaded.
+-spec compile_forms(erlang_form(), compile_options()) -> {ok, atom, binary()}.
+compile_forms(AbsCode, Opts) ->
     case compile:forms(AbsCode, Opts) of
         {ok, ModName, Binary} ->
-            write_binary(ModName, Binary);
+            {ok, ModName, Binary};
         {ok, ModName, Binary, _Warnings} ->
-            write_binary(ModName, Binary);
+            {ok, ModName, Binary};
         Error ->
             exit({compile_forms, Error})
     end.
 
-%% @private Write a module & load it.
-write_binary(Name, Binary) ->
-    Filename = filename:join([filename:dirname(code:which(?MODULE)),
-                              atom_to_list(Name) ++ ".beam"]),
-    file:write_file(Filename, Binary),
-    code:purge(Name),
-    case code:load_file(Name) of
+%% @private Load a module binary.
+-spec load_binary(atom(), binary()) -> ok.
+load_binary(Name, Binary) ->
+    case code:load_binary(Name, "", Binary) of
         {module, Name}  -> ok;
         {error, Reason} -> exit({error_loading_module, Name, Reason})
     end.
 
-%% @private Return the version number of a module.
--spec module_version(atom()) -> integer().
-module_version(Name) ->
-    Attrs = Name:module_info(attributes),
-    {vsn, [Vsn]} = lists:keyfind(vsn, 1, Attrs),
-    Vsn.
+%% @private Write a module binary to a file.
+-spec write_binary(atom(), binary()) -> ok.
+write_binary(Name, Binary) ->
+    Dirname = filename:dirname(code:which(?MODULE)),
+    Basename = atom_to_list(Name) ++ ".beam",
+    Filename = filename:join([Dirname, Basename]),
+    file:write_file(Filename, Binary).
+    %%code:purge(Name), %% load_file never updates a loaded module.
+    %%case code:load_file(Name) of
+    %%    {module, Name}  -> ok;
+    %%    {error, Reason} -> exit({error_loading_module, Name, Reason})
+    %%end.
 
-%% @private
--spec lookup_dispatch() -> [{term(), atom()}].
-lookup_dispatch() ->
-    ets:select(?MODTABLE, [{#db_info{db='$1',mod='$2', vsn='_'}, [], [{{'$1','$2'}}]}]).
 
-%% @private
--spec lookup_mappings(term()) -> [{binary(), binary()}].
-lookup_mappings(Database) ->
-    ets:select(?TABLE, [{
-        #map_info{db='$1',ext='$2',mime='$3'},
-        [{'=:=','$1',{const,Database}}], [{{'$2','$3'}}]}]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
