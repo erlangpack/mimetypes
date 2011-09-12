@@ -501,12 +501,6 @@ write_binary(Name, Binary) ->
     Basename = atom_to_list(Name) ++ ".beam",
     Filename = filename:join([Dirname, Basename]),
     file:write_file(Filename, Binary).
-    %%code:purge(Name), %% load_file never updates a loaded module.
-    %%case code:load_file(Name) of
-    %%    {module, Name}  -> ok;
-    %%    {error, Reason} -> exit({error_loading_module, Name, Reason})
-    %%end.
-
 
 
 -ifdef(TEST).
