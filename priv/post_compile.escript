@@ -1,7 +1,7 @@
--module(mimetypes_rebar).
--export([post_hook/0]).
+#!/usr/bin/env escript
+%%! -pa ebin
 
-post_hook() ->
+main(_) ->
     ok = application:start(mimetypes),
     ok = application:stop(mimetypes),
     {ok, [T]} = file:consult("ebin/mimetypes.app"),
