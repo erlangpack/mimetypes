@@ -140,6 +140,7 @@ init([]) ->
         _ ->
             ok
     end,
+    ok = filter_modules(),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -501,6 +502,19 @@ write_binary(Name, Binary) ->
     Basename = atom_to_list(Name) ++ ".beam",
     Filename = filename:join([Dirname, Basename]),
     file:write_file(Filename, Binary).
+
+%% @private Filter out known but not loaded modules and reload dispatch.
+%% This is function should be called on startup to ensure that the
+%% dispatch module is restored when the server crashed while loading
+%% a database module.
+-spec filter_modules() -> ok.
+filter_modules() ->
+    Modules = ?DISPMOD:modules(),
+    Keep = [{D,M} || {D,M} <- Modules, code:is_loaded(M) =/= false],
+    case Keep of
+        Modules -> ok;
+        _Other  -> load_dispatch(Keep)
+    end.
 
 
 -ifdef(TEST).
