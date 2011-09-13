@@ -166,6 +166,8 @@ handle_call({create, Name}, _From, State) ->
             Index = length(Modules),
             Mod = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
             NewMods = [{Name,Mod}|Modules],
+            %% _always_ load the updated dispatch module before the new
+            %% mapping module. If we don't we'll loose out reference to it.
             ok = load_dispatch(NewMods),
             ok = load_mapping(Mod, []),
             {reply, ok, State}
@@ -471,11 +473,6 @@ mimes_clause(Pairs) ->
 
 
 %% @private Compile a module.
-%% We defer loading of the modules until later. This way we can create new
-%% mapping modules as a small atomic-ish transaction. If we load the dispatch
-%% module before the new mapping module we will never loose a reference to a
-%% mapping module, the weird case occurs when we crash before the new mapping
-%% module is loaded.
 -spec compile_forms(erlang_form(), compile_options()) -> {ok, atom, binary()}.
 compile_forms(AbsCode, Opts) ->
     case compile:forms(AbsCode, Opts) of
