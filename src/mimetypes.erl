@@ -511,7 +511,7 @@ write_binary(Name, Binary) ->
 -spec filter_modules() -> ok.
 filter_modules() ->
     Modules = ?DISPMOD:modules(),
-    Keep = [{D,M} || {D,M} <- Modules, code:is_loaded(M) =/= false],
+    Keep = [{D,M} || {D,M} <- Modules, code:which(M) =/= non_existing],
     case Keep of
         Modules -> ok;
         _Other  -> load_dispatch(Keep)
