@@ -3,8 +3,9 @@
 -behaviour(gen_server).
 
 %% API - original
--export([module/0, start_link/0, extension/1, filename/1, extensions/1,
+-export([start_link/0, extension/1, filename/1, extensions/1,
          types/0, extensions/0]).
+-export([dmodule/0, mmodule/0]).
 
 %% API - multiple databases
 -export([create/1, load/2]).
@@ -29,8 +30,11 @@
 %%% API
 %%%===================================================================
 
-module() ->
+mmodule() ->
     ?MAPMOD.
+
+dmodule() ->
+    ?DISPMOD.
 
 extension(Ext) ->
     ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default).
