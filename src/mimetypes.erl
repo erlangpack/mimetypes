@@ -2,9 +2,15 @@
 
 -behaviour(gen_server).
 
-%% API
--export([module/0, start_link/0, extension/1, filename/1, extensions/1,
+%% API - original
+-export([start_link/0, extension/1, filename/1, extensions/1,
          types/0, extensions/0]).
+-export([dmodule/0, mmodule/0]).
+
+%% API - multiple databases
+-export([create/1, load/2]).
+-export([ext_to_mimes/1, ext_to_mimes/2]).
+-export([mime_to_exts/1, mime_to_exts/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -12,22 +18,26 @@
 
 -define(SERVER, ?MODULE). 
 -define(MAPMOD, mimetypes_map).
-
--record(state, {}).
+-define(DISPMOD, mimetypes_disp).
 
 -type erlang_form() :: term().
 -type compile_options() :: [term()].
+
+-record(state, {}).
 
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-module() ->
+mmodule() ->
     ?MAPMOD.
 
+dmodule() ->
+    ?DISPMOD.
+
 extension(Ext) ->
-    ?MAPMOD:ext_to_mimes(iolist_to_binary(Ext)).
+    ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default).
 
 filename(Filename) ->
     "." ++ Ext = filename:extension(Filename),
@@ -36,14 +46,54 @@ filename(Filename) ->
 extensions(Types) when is_list(Types) ->
     lists:usort(lists:flatten([ extensions(Type) || Type <- Types ]));
 extensions(Type) when is_binary(Type) ->
-    ?MAPMOD:mime_to_exts(iolist_to_binary(Type)).
+    ?DISPMOD:mime_to_exts(iolist_to_binary(Type), default).
 
 
 types() ->    
-    ?MAPMOD:mimes().
+    ?DISPMOD:mimes(default).
 
 extensions() ->    
-    ?MAPMOD:exts().
+    ?DISPMOD:exts(default).
+
+
+%% @doc Create a new database of extension-mimetype mappings.
+%% The name 'default' is reserved.
+%% @end
+-spec create(term()) -> ok.
+create(Database) when Database =/= default ->
+    gen_server:call(?SERVER, {create, Database}).
+
+%% @doc Load a set of extension-mimetype mappings.
+-spec load(term(), [{binary(), binary()}]) -> ok.
+load(Database, Mappings) ->
+    gen_server:call(?SERVER, {load, Database, Mappings}).
+
+
+%% @doc Return the set of known mimetypes of an extension.
+%% @equiv ext_to_mimes(Extension, default)
+%% @end
+-spec ext_to_mimes(string() | binary()) -> [binary()].
+ext_to_mimes(Extension) ->
+    ?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), default).
+
+%% @doc Return the set of known mimetypes of an extension.
+%% @end
+-spec ext_to_mimes(string() | binary(), term()) -> [binary()].
+ext_to_mimes(Extension, Database) ->
+    ?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), Database).
+
+%% @doc Return the set of known extensions of a mimetype.
+%% @equiv mime_to_exts(MimeType, default)
+%% @end
+-spec mime_to_exts(string() | binary()) -> [binary()].
+mime_to_exts(MimeType) ->
+    ?DISPMOD:mime_to_exts(iolist_to_binary(MimeType), default).
+
+%% @doc Return the set of known extensions of a mimetype.
+%% @end
+-spec mime_to_exts(string() | binary(), term()) -> [binary()].
+mime_to_exts(MimeType, Database) ->
+    ?DISPMOD:mime_to_exts(iolist_to_binary(MimeType), Database).
     
 
 %%--------------------------------------------------------------------
@@ -89,10 +139,12 @@ init([]) ->
             {ok, Tokens, _} = mimetypes_scan:string(S),
             {ok, MimeTypes} = mimetypes_parse:parse(Tokens),
             Mapping = extract_extensions(MimeTypes),
-            load_mapping(Mapping);
+            ok = write_dispatch([{default, ?MAPMOD}]),
+            ok = write_mapping(?MAPMOD, Mapping);
         _ ->
             ok
     end,
+    ok = filter_modules(),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -109,6 +161,36 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call({create, Name}, _From, State) ->
+    Modules = ?DISPMOD:modules(),
+    case lists:keyfind(Name, 1, Modules) of
+        {_, _} ->
+            {reply, exists, State};
+        false ->
+            Index = length(Modules),
+            Mod = list_to_atom("mimetypes_db_" ++ integer_to_list(Index)),
+            NewMods = [{Name,Mod}|Modules],
+            %% _always_ load the updated dispatch module before the new
+            %% mapping module. If we don't we'll loose out reference to it.
+            ok = load_dispatch(NewMods),
+            ok = load_mapping(Mod, []),
+            {reply, ok, State}
+    end;
+
+handle_call({load, Name, New}, _From, #state{}=State) ->
+    Modules = ?DISPMOD:modules(),
+    case lists:keyfind(Name, 1, Modules) of
+        false ->
+            {reply, noexists, State};
+        {_, Mod} ->
+            Exts = Mod:exts(),
+            E2MS = fun(E) -> Mod:ext_to_mimes(E) end,
+            Prev = lists:flatten([[{E,T} || T <- E2MS(E)] || E <- Exts]),
+            Pairs = lists:usort(Prev ++ New),
+            ok = load_mapping(Mod, Pairs),
+            {reply, ok, State}
+    end;
+
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
@@ -173,11 +255,146 @@ extract_extensions([{Type, Exts}|Rest]) ->
 
 
 %% @private Load a list of mimetype-extension pairs.
--spec load_mapping([{binary(), binary()}]) -> ok.
-load_mapping(Pairs) ->
-    Module = ?MAPMOD,
+-spec load_mapping(atom(), [{binary(), binary()}]) -> ok.
+load_mapping(Module, Pairs) ->
     AbsCode = map_to_abstract(Module, Pairs),
-    compile_and_load_forms(AbsCode, []).
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = load_binary(Module, Binary).
+
+%% @private Write a list of mimetype-extension pairs.
+%% The function should be called during pre-compilation when no module is
+%% available for the default set of mimetype-extension paris.
+-spec write_mapping(atom(), [{binary(), binary()}]) -> ok.
+write_mapping(Module, Pairs) ->
+    AbsCode = map_to_abstract(Module, Pairs),
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = write_binary(Module, Binary),
+    ok = load_binary(Module, Binary).
+
+%% @private Load a list of database-module pairs.
+-spec load_dispatch([{term(), atom()}]) -> ok.
+load_dispatch(Pairs) ->
+    Module = ?DISPMOD,
+    AbsCode = disp_to_abstract(Module, Pairs),
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = load_binary(Module, Binary).
+
+%% @private Write a list of database-module pairs.
+-spec write_dispatch([{term(), atom()}]) -> ok.
+write_dispatch(Pairs) ->
+    Module = ?DISPMOD,
+    AbsCode = disp_to_abstract(Module, Pairs),
+    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    ok = write_binary(Module, Binary),
+    ok = load_binary(Module, Binary).
+
+%% @private Generate an abstract dispatch module.
+-spec disp_to_abstract(atom(), [{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_to_abstract(Module, Dispatch) ->
+    [erl_syntax:revert(E) || E <- disp_to_abstract_(Module, Dispatch)].
+
+%% @private Generate an abstract dispatch module.
+-spec disp_to_abstract_(atom(), [{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_to_abstract_(Module, Dispatch) ->
+    [%% -module(Module)
+     erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
+     %% -export([ext_to_mimes/2, mime_to_exts/2, exts/1, mimes/1, modules/0]).
+     erl_syntax:attribute(
+       erl_syntax:atom(export),
+       [erl_syntax:list(
+         %% ext_to_mimes/2
+         [erl_syntax:arity_qualifier(
+            erl_syntax:atom(ext_to_mimes),
+            erl_syntax:integer(2)),
+          %% mime_to_exts/2
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(mime_to_exts),
+            erl_syntax:integer(2)),
+          %% exts/1
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(exts),
+            erl_syntax:integer(1)),
+          %% mimes/1
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(mimes),
+            erl_syntax:integer(1)),
+          %% modules/0
+          erl_syntax:arity_qualifier(
+            erl_syntax:atom(modules),
+            erl_syntax:integer(0))])]),
+     %% ext_to_mimes(Extension, Database) -> [MimeType].
+     erl_syntax:function(
+       erl_syntax:atom(ext_to_mimes),
+       disp_ext_to_mimes_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore(), erl_syntax:underscore()],
+           none, [erl_syntax:abstract(error)])]),
+     %% mime_to_exts(MimeType, Database) -> [Extension].
+     erl_syntax:function(
+       erl_syntax:atom(mime_to_exts),
+       disp_mime_to_exts_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore(), erl_syntax:underscore()],
+           none, [erl_syntax:abstract(error)])]),
+     %% exts(Database) -> [Extension].
+     erl_syntax:function(
+       erl_syntax:atom(exts),
+       disp_exts_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])]),
+     %% mimes(Database) -> [MimeType].
+     erl_syntax:function(
+       erl_syntax:atom(mimes),
+       disp_mimes_clauses(Dispatch) ++
+       [erl_syntax:clause(
+         [erl_syntax:underscore()], none, [erl_syntax:abstract(error)])]),
+     %% modules() -> [{Name, Mod}].
+     erl_syntax:function(
+       erl_syntax:atom(modules),
+       [erl_syntax:clause([], none, [erl_syntax:abstract(Dispatch)])])].
+
+%% @private Generate a set of ext_to_mimes clauses.
+-spec disp_ext_to_mimes_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_ext_to_mimes_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:variable("Ext"), erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M),
+          erl_syntax:atom(ext_to_mimes),
+          [erl_syntax:variable("Ext")])])
+    || {D, M} <- Dispatch].
+
+
+%% @private Generate a set of mime_to_exts clauses.
+-spec disp_mime_to_exts_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_mime_to_exts_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:variable("Type"), erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M),
+          erl_syntax:atom(mime_to_exts),
+          [erl_syntax:variable("Type")])])
+    || {D, M} <- Dispatch].
+
+%% @private Generate a set of exts clauses.
+-spec disp_exts_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_exts_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M), erl_syntax:atom(exts), [])])
+    || {D, M} <- Dispatch].
+
+
+
+%% @private Generate a set of mimes clauses.
+-spec disp_mimes_clauses([{term(), atom()}]) -> [erl_syntax:syntaxTree()].
+disp_mimes_clauses(Dispatch) ->
+    [erl_syntax:clause(
+      [erl_syntax:abstract(D)], none,
+        [erl_syntax:application(
+          erl_syntax:atom(M), erl_syntax:atom(mimes), [])])
+    || {D, M} <- Dispatch].
 
 
 %% @private Generate an abstract mimtype mapping module.
@@ -190,7 +407,7 @@ map_to_abstract(Module, Pairs) ->
 map_to_abstract_(Module, Pairs) ->
     [%% -module(Module).
      erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-     %% -export([ext_to_mimes/1, mime_to_exts/1]).
+     %% -export([ext_to_mimes/1, mime_to_exts/1, exts/0, mimes/0]).
      erl_syntax:attribute(
        erl_syntax:atom(export),
        [erl_syntax:list(
@@ -259,27 +476,45 @@ mimes_clause(Pairs) ->
     erl_syntax:clause([], none, [erl_syntax:abstract(Types)]).
 
 
-%% @private Compile and load a module.
-%% Copied from the meck_mod module of the meck project.
--spec compile_and_load_forms(erlang_form(), compile_options()) -> ok.
-compile_and_load_forms(AbsCode, Opts) ->
+%% @private Compile a module.
+-spec compile_forms(erlang_form(), compile_options()) -> {ok, atom, binary()}.
+compile_forms(AbsCode, Opts) ->
     case compile:forms(AbsCode, Opts) of
         {ok, ModName, Binary} ->
-            write_binary(ModName, Binary);
+            {ok, ModName, Binary};
         {ok, ModName, Binary, _Warnings} ->
-            write_binary(ModName, Binary);
+            {ok, ModName, Binary};
         Error ->
             exit({compile_forms, Error})
     end.
 
-%% @private Write a module & load it.
-write_binary(Name, Binary) ->
-    Filename = filename:join([filename:dirname(code:which(?MODULE)),
-                              atom_to_list(Name) ++ ".beam"]),
-    file:write_file(Filename, Binary),
-    case code:ensure_loaded(Name) of
+%% @private Load a module binary.
+-spec load_binary(atom(), binary()) -> ok.
+load_binary(Name, Binary) ->
+    case code:load_binary(Name, "", Binary) of
         {module, Name}  -> ok;
         {error, Reason} -> exit({error_loading_module, Name, Reason})
+    end.
+
+%% @private Write a module binary to a file.
+-spec write_binary(atom(), binary()) -> ok.
+write_binary(Name, Binary) ->
+    Dirname = filename:dirname(code:which(?MODULE)),
+    Basename = atom_to_list(Name) ++ ".beam",
+    Filename = filename:join([Dirname, Basename]),
+    file:write_file(Filename, Binary).
+
+%% @private Filter out known but not loaded modules and reload dispatch.
+%% This is function should be called on startup to ensure that the
+%% dispatch module is restored when the server crashed while loading
+%% a database module.
+-spec filter_modules() -> ok.
+filter_modules() ->
+    Modules = ?DISPMOD:modules(),
+    Keep = [{D,M} || {D,M} <- Modules, code:which(M) =/= non_existing],
+    case Keep of
+        Modules -> ok;
+        _Other  -> load_dispatch(Keep)
     end.
 
 
@@ -287,11 +522,50 @@ write_binary(Name, Binary) ->
 -include_lib("eunit/include/eunit.hrl").
 
 codegen_test() ->
-    ok = load_mapping([{<<"b">>, <<"a">>}]),
+    ok = load_mapping(?MAPMOD, [{<<"b">>, <<"a">>}]),
     ?MAPMOD:module_info(),
     ?assertEqual([<<"a">>], ?MAPMOD:ext_to_mimes(<<"b">>)),
     ?assertEqual([<<"b">>], ?MAPMOD:mime_to_exts(<<"a">>)),
     ?assertEqual([<<"b">>], ?MAPMOD:exts()),
     ?assertEqual([<<"a">>], ?MAPMOD:mimes()).
+
+dispatch_test() ->
+    ok = load_mapping(?MAPMOD, [{<<"b">>, <<"a">>}]),
+    ok = load_dispatch([{default, ?MAPMOD}]),
+    ?assertEqual([<<"a">>], ?DISPMOD:ext_to_mimes(<<"b">>, default)),
+    ?assertEqual([<<"b">>], ?DISPMOD:mime_to_exts(<<"a">>, default)),
+    ?assertEqual([<<"b">>], ?DISPMOD:exts(default)),
+    ?assertEqual([<<"a">>], ?DISPMOD:mimes(default)),
+    ?assertEqual(error, ?DISPMOD:ext_to_mimes(<<"b">>, nodb)),
+    ?assertEqual(error, ?DISPMOD:mime_to_exts(<<"a">>, nodb)),
+    ?assertEqual(error, ?DISPMOD:exts(nodb)),
+    ?assertEqual(error, ?DISPMOD:mimes(nodb)).
+
+multi_test() ->
+    ok = load_mapping(?MAPMOD, [{<<"b">>, <<"a">>}]),
+    ok = load_dispatch([{default, ?MAPMOD}]),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes(<<"b">>)),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes(<<"b">>, default)),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes("b")),
+    ?assertEqual([<<"a">>], mimetypes:ext_to_mimes("b", default)),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts(<<"a">>)),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts(<<"a">>, default)),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts("a")),
+    ?assertEqual([<<"b">>], mimetypes:mime_to_exts("a", default)).
+
+create_test_() ->
+    {setup,local,
+        fun() -> application:start(mimetypes) end,
+        fun(_) -> application:stop(mimetypes) end,
+        [?_test(test_create())]}.
+
+test_create() ->
+    noexists = mimetypes:load(test_db_1, []),
+    ok = mimetypes:create(test_db_1),
+    ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m1">>}]),
+    ?assertEqual([<<"m1">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
+    ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m2">>}]),
+    ?assertEqual([<<"m1">>,<<"m2">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
+    ?assertEqual(exists, mimetypes:create(test_db_1)).
 
 -endif.
