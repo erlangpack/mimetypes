@@ -40,8 +40,13 @@ extension(Ext) ->
     ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default).
 
 filename(Filename) ->
-    "." ++ Ext = filename:extension(Filename),
-    extension(Ext).
+
+    case filename:extension(Filename) of
+        [] ->
+            extension("");
+        "." ++ Ext ->
+            extension(Ext)
+    end.
 
 extensions(Types) when is_list(Types) ->
     lists:usort(lists:flatten([ extensions(Type) || Type <- Types ]));
