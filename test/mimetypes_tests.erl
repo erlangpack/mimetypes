@@ -57,12 +57,23 @@ mimetypes_test_() ->
       ]}].
 
 filename_test_() ->
-    {"Test filename/1 for names without an extension.",
-        {setup,local,
-            fun() -> application:start(mimetypes) end,
-            fun(_) -> application:stop(mimetypes) end,
-            [?_assertEqual(mimetypes:filename("/etc/fstab"), 'undefined')
-            ,?_assertEqual(mimetypes:filename("."), 'undefined')
-            ,?_assertEqual(mimetypes:filename(""), 'undefined')
+    {"Test filename/1 for names without an extension and for unknown extensions.",
+      {setup,local,
+        fun() -> application:start(mimetypes) end,
+        fun(_) -> application:stop(mimetypes) end,
+        [?_assertEqual(mimetypes:filename("/etc/fstab"), 'undefined')
+        ,?_assertEqual(mimetypes:filename("."), 'undefined')
+        ,?_assertEqual(mimetypes:filename(""), 'undefined')
+        ,?_assertEqual(mimetypes:filename(""), 'undefined')
+        ,?_assertEqual(mimetypes:filename("t.unknown_extension"), 'undefined')
 %           ,?_assertEqual(mimetypes:filename("index.html"), [<<"text/html">>])
-            ]}}.
+        ]}}.
+
+extensions_test_() ->
+    {"Test extensions/1 for bad extensions.",
+      {setup,local,
+        fun() -> application:start(mimetypes) end,
+        fun(_) -> application:stop(mimetypes) end,
+        [?_assertEqual(mimetypes:extensions([<<"unknown/ext">>]), [])
+        ,?_assertEqual(mimetypes:extensions(<<"unknown/ext">>), [])
+        ]}}.
