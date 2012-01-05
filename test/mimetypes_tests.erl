@@ -61,16 +61,15 @@ filename_test_() ->
       {setup,local,
         fun() -> application:start(mimetypes) end,
         fun(_) -> application:stop(mimetypes) end,
-        [?_assertEqual(mimetypes:filename("/etc/fstab"), 'undefined')
-        ,?_assertEqual(mimetypes:filename("."), 'undefined')
-        ,?_assertEqual(mimetypes:filename(""), 'undefined')
-        ,?_assertEqual(mimetypes:filename(""), 'undefined')
-        ,?_assertEqual(mimetypes:filename("t.unknown_extension"), 'undefined')
+        [?_assertEqual(mimetypes:filename("/etc/fstab"), [<<"application/octet-stream">>])
+        ,?_assertEqual(mimetypes:filename("."), [<<"application/octet-stream">>])
+        ,?_assertEqual(mimetypes:filename(""), [<<"application/octet-stream">>])
+        ,?_assertEqual(mimetypes:filename("t.unknown_extension"), [<<"application/octet-stream">>])
 %           ,?_assertEqual(mimetypes:filename("index.html"), [<<"text/html">>])
         ]}}.
 
 extensions_test_() ->
-    {"Test extensions/1 for bad extensions.",
+    {"Test extensions/1 for bad content types.",
       {setup,local,
         fun() -> application:start(mimetypes) end,
         fun(_) -> application:stop(mimetypes) end,

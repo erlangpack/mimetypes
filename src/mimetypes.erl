@@ -38,7 +38,8 @@ dmodule() ->
 
 %% @doc Transforms an extension to a list of mimetypes.
 %%
-%%      Returns 'undefined' if there is no data about this extension.
+%%      Returns application/octet-stream if there is no data about
+%%      given extension.
 %%
 %%      Example:
 %%
@@ -46,13 +47,19 @@ dmodule() ->
 %% 1> mimetypes:extension("c").    
 %% [<<"text/x-c">>]
 %% 2> mimetypes:extension("hrl").
-%% undefined
+%% [<<"application/octet-stream">>]
 %% 3> mimetypes:extension(<<"html">>).   
 %% [<<"text/html">>]
 %% '''
--spec extension(Extension :: binary() | string()) -> [binary()] | 'undefined'.
+-spec extension(Extension :: binary() | string()) -> [binary()].
+
 extension(Ext) ->
-    ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default).
+    case ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default) of
+        undefined ->
+            [<<"application/octet-stream">>];
+        MimeTypes ->
+            MimeTypes
+    end.
 
 %% @doc Convert a filename to a list of mimetypes.
 %%
@@ -62,17 +69,17 @@ extension(Ext) ->
 %% 1> mimetypes:filename("test.cpp").    
 %% [<<"text/x-c">>]
 %% 2> mimetypes:filename("/etc/fstab").
-%% undefined
+%% ["<<application/octet-stream">>]
 %% 3> mimetypes:filename("/etc/adduser.conf").
 %% [<<"text/plain">>]
 %% '''
 
--spec filename(Filename :: string()) -> 'undefined'.
+-spec filename(Filename :: string()) -> [binary()].
 filename(Filename) ->
     case filename:extension(Filename) of
-    "." ++ Ext ->
+    "." ++ Ext when length(Ext) > 0 ->
         extension(Ext);
-    _ -> 'undefined'
+    _ -> [<<"application/octet-stream">>]
     end.
 
 %% @doc Convert mimetype to a list of extensions.
