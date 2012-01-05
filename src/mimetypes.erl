@@ -36,22 +36,75 @@ mmodule() ->
 dmodule() ->
     ?DISPMOD.
 
+%% @doc Transforms an extension to a list of mimetypes.
+%%
+%%      Returns 'undefined' if there is no data about this extension.
+%%
+%%      Example:
+%%
+%% ```
+%% 1> mimetypes:extension("c").    
+%% [<<"text/x-c">>]
+%% 2> mimetypes:extension("hrl").
+%% undefined
+%% 3> mimetypes:extension(<<"html">>).   
+%% [<<"text/html">>]
+%% '''
+-spec extension(Extension :: binary() | string()) -> [binary()] | 'undefined'.
 extension(Ext) ->
     ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default).
 
-filename(Filename) ->
-    "." ++ Ext = filename:extension(Filename),
-    extension(Ext).
+%% @doc Convert a filename to a list of mimetypes.
+%%
+%% Example:
+%%
+%% ```
+%% 1> mimetypes:filename("test.cpp").    
+%% [<<"text/x-c">>]
+%% 2> mimetypes:filename("/etc/fstab").
+%% undefined
+%% 3> mimetypes:filename("/etc/adduser.conf").
+%% [<<"text/plain">>]
+%% '''
 
+-spec filename(Filename :: string()) -> 'undefined'.
+filename(Filename) ->
+    case filename:extension(Filename) of
+    "." ++ Ext ->
+        extension(Ext);
+    _ -> 'undefined'
+    end.
+
+%% @doc Convert mimetype to a list of extensions.
+%%
+%% Example:
+%%
+%% ```
+%% 1> mimetypes:extensions([<<"text/html">>]).
+%% [<<"htm">>,<<"html">>]
+%% 2> mimetypes:extensions([<<"text/html">>, <<"text/x-c">>]).
+%% [<<"c">>,<<"cc">>,<<"cpp">>,<<"cxx">>,<<"dic">>,<<"h">>,
+%%  <<"hh">>,<<"htm">>,<<"html">>]
+%% '''
+
+-spec extensions([binary()] | binary()) -> [binary()].
 extensions(Types) when is_list(Types) ->
     lists:usort(lists:flatten([ extensions(Type) || Type <- Types ]));
 extensions(Type) when is_binary(Type) ->
-    ?DISPMOD:mime_to_exts(iolist_to_binary(Type), default).
+    case ?DISPMOD:mime_to_exts(iolist_to_binary(Type), default) of
+    'undefined' ->
+        [];
+    ResultList ->
+        ResultList
+    end.
 
-
+%% @doc Return a list of all available mimetypes.
+-spec types() -> [binary()].
 types() ->    
     ?DISPMOD:mimes(default).
 
+%% @doc Return a list of all available extensions.
+-spec extensions() -> [binary()].
 extensions() ->    
     ?DISPMOD:exts(default).
 
