@@ -10,6 +10,7 @@
 %% API - multiple databases
 -export([create/1, load/2]).
 -export([ext_to_mimes/1, ext_to_mimes/2]).
+-export([path_to_mimes/1, path_to_mimes/2]).
 -export([mime_to_exts/1, mime_to_exts/2]).
 
 %% gen_server callbacks
@@ -52,14 +53,9 @@ dmodule() ->
 %% [<<"text/html">>]
 %% '''
 -spec extension(Extension :: binary() | string()) -> [binary()].
-
 extension(Ext) ->
-    case ?DISPMOD:ext_to_mimes(iolist_to_binary(Ext), default) of
-        undefined ->
-            [<<"application/octet-stream">>];
-        MimeTypes ->
-            MimeTypes
-    end.
+    ext_to_mimes(Ext).
+
 
 %% @doc Convert a filename to a list of mimetypes.
 %%
@@ -76,11 +72,8 @@ extension(Ext) ->
 
 -spec filename(Filename :: string()) -> [binary()].
 filename(Filename) ->
-    case filename:extension(Filename) of
-    "." ++ Ext when length(Ext) > 0 ->
-        extension(Ext);
-    _ -> [<<"application/octet-stream">>]
-    end.
+    path_to_mimes(Filename).
+
 
 %% @doc Convert mimetype to a list of extensions.
 %%
@@ -134,26 +127,44 @@ load(Database, Mappings) ->
 %% @end
 -spec ext_to_mimes(string() | binary()) -> [binary()].
 ext_to_mimes(Extension) ->
-    ?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), default).
+    ext_to_mimes(Extension, default).
 
 %% @doc Return the set of known mimetypes of an extension.
 %% @end
 -spec ext_to_mimes(string() | binary(), term()) -> [binary()].
 ext_to_mimes(Extension, Database) ->
-    ?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), Database).
+    checkdefault(?DISPMOD:ext_to_mimes(iolist_to_binary(Extension), Database)).
+
+%% @doc Return the set of known mimetypes based on the extension of a path.
+-spec path_to_mimes(string() | binary()) -> [binary()].
+path_to_mimes(Path) ->
+    path_to_mimes(Path, default).
+
+%% @doc Return the set of known mimetypes based on the extension of a path.
+-spec path_to_mimes(string() | binary(), term()) -> [binary()].
+path_to_mimes(Path, Database) ->
+    checkdefault(case filename:extension(iolist_to_binary(Path)) of
+        <<".", Ext/binary>> -> ext_to_mimes(Ext, Database);
+        _Else -> undefined
+    end).
 
 %% @doc Return the set of known extensions of a mimetype.
 %% @equiv mime_to_exts(MimeType, default)
 %% @end
 -spec mime_to_exts(string() | binary()) -> [binary()].
 mime_to_exts(MimeType) ->
-    ?DISPMOD:mime_to_exts(iolist_to_binary(MimeType), default).
+    mime_to_exts(MimeType, default).
 
 %% @doc Return the set of known extensions of a mimetype.
 %% @end
 -spec mime_to_exts(string() | binary(), term()) -> [binary()].
 mime_to_exts(MimeType, Database) ->
     ?DISPMOD:mime_to_exts(iolist_to_binary(MimeType), Database).
+
+%% @private Map undefined to application/octet-stream.
+-spec checkdefault(undefined | [binary()]) -> [binary()].
+checkdefault(undefined) -> [<<"application/octet-stream">>];
+checkdefault(Other=[_|_]) -> Other.
     
 
 %%--------------------------------------------------------------------
@@ -617,7 +628,7 @@ create_test_() ->
     {setup,local,
         fun() -> application:start(mimetypes) end,
         fun(_) -> application:stop(mimetypes) end,
-        [?_test(test_create())]}.
+        [?_test(test_create()), ?_test(test_default())]}.
 
 test_create() ->
     noexists = mimetypes:load(test_db_1, []),
@@ -627,5 +638,38 @@ test_create() ->
     ok = mimetypes:load(test_db_1, [{<<"e1">>, <<"m2">>}]),
     ?assertEqual([<<"m1">>,<<"m2">>], mimetypes:ext_to_mimes(<<"e1">>, test_db_1)),
     ?assertEqual(exists, mimetypes:create(test_db_1)).
+
+test_default() ->
+    %% Ensure that ext_to_mimes/1+2, path_to_mimes/1+2, extension/1
+    %% and filename/1 all returns the default type if none is found.
+    Default = [<<"application/octet-stream">>],
+    %% Check with non-existing extension for ext_to_mimes and extension
+    ?assertEqual(Default, mimetypes:ext_to_mimes(<<"e2">>)),
+    ?assertEqual(Default, mimetypes:ext_to_mimes("e2")),
+    ?assertEqual(Default, mimetypes:ext_to_mimes(<<"e2">>, default)),
+    ?assertEqual(Default, mimetypes:ext_to_mimes("e2", default)),
+    ?assertEqual(Default, mimetypes:extension(<<"e2">>)),
+    ?assertEqual(Default, mimetypes:extension("e2")),
+    %% Also check with empty extension and none for path_to_mimes and filename
+    ?assertEqual(Default, mimetypes:path_to_mimes(<<"a.e2">>)),
+    ?assertEqual(Default, mimetypes:path_to_mimes("a.e2")),
+    ?assertEqual(Default, mimetypes:path_to_mimes(<<"a.">>)),
+    ?assertEqual(Default, mimetypes:path_to_mimes("a.")),
+    ?assertEqual(Default, mimetypes:path_to_mimes(<<"a">>)),
+    ?assertEqual(Default, mimetypes:path_to_mimes("a")),
+    %% Identical tests, but for path_to_mimes/2 using the same database
+    ?assertEqual(Default, mimetypes:path_to_mimes(<<"a.e2">>, default)),
+    ?assertEqual(Default, mimetypes:path_to_mimes("a.e2", default)),
+    ?assertEqual(Default, mimetypes:path_to_mimes(<<"a.">>, default)),
+    ?assertEqual(Default, mimetypes:path_to_mimes("a.", default)),
+    ?assertEqual(Default, mimetypes:path_to_mimes(<<"a">>, default)),
+    ?assertEqual(Default, mimetypes:path_to_mimes("a", default)),
+    %% Identical tests but for filename/2, should equal path_to_mimes/1
+    ?assertEqual(Default, mimetypes:filename(<<"a.e2">>)),
+    ?assertEqual(Default, mimetypes:filename("a.e2")),
+    ?assertEqual(Default, mimetypes:filename(<<"a.">>)),
+    ?assertEqual(Default, mimetypes:filename("a.")),
+    ?assertEqual(Default, mimetypes:filename(<<"a">>)),
+    ?assertEqual(Default, mimetypes:filename("a")).
 
 -endif.
