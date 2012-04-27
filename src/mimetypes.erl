@@ -8,7 +8,7 @@
 -export([dmodule/0, mmodule/0]).
 
 %% API - multiple databases
--export([create/1, load/2]).
+-export([create/1, load/2, load/3]).
 -export([ext_to_mimes/1, ext_to_mimes/2]).
 -export([path_to_mimes/1, path_to_mimes/2]).
 -export([mime_to_exts/1, mime_to_exts/2]).
@@ -120,6 +120,11 @@ create(Database) when Database =/= default ->
 -spec load(term(), [{binary(), binary()}]) -> ok.
 load(Database, Mappings) ->
     gen_server:call(?SERVER, {load, Database, Mappings}).
+
+%% @doc Load a set of extension-mimetype mappings.
+-spec load(term(), [{binary(), binary()}], infinity | integer()) -> ok.
+load(Database, Mappings, Timeout) ->
+    gen_server:call(?SERVER, {load, Database, Mappings}, Timeout).
 
 
 %% @doc Return the set of known mimetypes of an extension.
