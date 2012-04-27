@@ -27,3 +27,43 @@ ok
 7> mimetypes:extensions("application/mathematica").
 [<<"ma">>,<<"nb">>,<<"mb">>]
 ```
+
+Additional types
+----------------
+
+Additional mappings can be loaded at runtime using the ```mimetypes:load/2```
+function. If this function is timing out it is possible to increase the
+timeout using ```mimetypes:load/3```.
+
+``` erlang
+1> application:start(mimetypes).
+ok
+2> mimetypes:load(default, [{<<"ext">>, <<"new/type">>}]).
+ok
+3> mimetypes:extension(<<"ext">>).
+[<<"application/vnd.novadigm.ext">>,<<"new/type">>]
+2> mimetypes:load(default, [{<<"ext">>, <<"new/type">>}], 10000).
+ok
+```
+
+Additional mappings can also be specified using the application environment
+variables for the ```mimetypes``` application. These can be added to the
+config file specified using the ```erl -config``` flag.
+
+``` erlang
+[{mimetypes, [
+    %% Wait for all additional types to be loaded before returning from
+    %% application:start(mimetypes). Set to false to return immidiately
+    %% and load them in the background.
+    {load_async, true},
+    %% Timeout to use for calls to mimetypes:load/3 while loading additional
+    %% mimetypes. The default is the same as for mimetypes:load/2. You may
+    %% need to increase this value.
+    {load_timeout, 5000},
+    {load, [
+        {default, [
+            {<<"ext">>, <<"new/type">>}
+        ]}
+    ]}
+]}].
+```
