@@ -76,3 +76,36 @@ extensions_test_() ->
         [?_assertEqual(mimetypes:extensions([<<"unknown/ext">>]), [])
         ,?_assertEqual(mimetypes:extensions(<<"unknown/ext">>), [])
         ]}}.
+
+sync_loader_test_() ->
+    {setup,local,
+        fun() ->
+            application:load(mimetypes),
+            application:set_env(mimetypes, load, [
+                {default, [{<<"foo1">>, <<"bar1">>}]}]),
+            application:set_env(mimetypes, load_sync, true),
+            application:start(mimetypes)
+        end,
+        fun(_) -> application:stop(mimetypes) end,
+        [?_assertEqual([<<"bar1">>], mimetypes:ext_to_mimes(<<"foo1">>))]}.
+
+async_loader_test_() ->
+    {setup,local,
+        fun() ->
+            application:load(mimetypes),
+            application:set_env(mimetypes, load, [
+                {default, [{<<"foo2">>, <<"bar2">>}]}]),
+            application:set_env(mimetypes, load_sync, false),
+            application:start(mimetypes)
+        end,
+        fun(_) -> application:stop(mimetypes) end,
+        [{timeout, 10000, ?_test(async_loader_onstart())},
+         {timeout, 10000, ?_test(async_loader_wait())}
+        ]}.
+
+async_loader_onstart() ->
+    ?assertEqual(undefined, mimetypes:ext_to_mimes(<<"foo2">>)).
+
+async_loader_wait() ->
+    receive after 5000 -> ok end, %% @todo don't use an arbitrary time
+    ?assertEqual([<<"bar2">>], mimetypes:ext_to_mimes(<<"foo2">>)).
