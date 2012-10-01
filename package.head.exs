@@ -4,4 +4,4 @@ Expm.Package.new(name: "mimetypes", description: "Erlang MIME types library",
                  contributors: [[name: "Magnus Klaar", email: "magnus.klaar@gmail.com"],
                                 [name: "Uvarov Michael", email: "freeakk@gmail.com"],
                                 [name: "Jesse Gumm", email: "sigmastar@gmail.com"]],
-                 repositories: [[github: "yrashk/mimetypes"]])
+                 repositories: [[github: "spawngrid/mimetypes"]])
