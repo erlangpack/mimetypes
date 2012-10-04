@@ -1,5 +1,5 @@
 #!/usr/bin/env escript
-%%! -pa ebin
+%%! -pa ebin -kernel error_logger silent
 
 main(_) ->
     {ok, [T]} = file:consult("ebin/mimetypes.app"),
