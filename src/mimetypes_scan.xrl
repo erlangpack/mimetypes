@@ -1,7 +1,7 @@
 Definitions.
 
 WS     = ([\s\t])
-NL     = ([\n])
+NL     = (\r?[\n])
 
 COMMENT = (#.*\n)
 STR = ([a-zA-Z_/\-0-9\+\.]+)
