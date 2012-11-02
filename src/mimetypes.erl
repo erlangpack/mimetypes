@@ -200,15 +200,15 @@ start_link() ->
 init([]) ->
     case code:which(?MAPMOD) of
         non_existing ->
-            case code:priv_dir(mimetypes) of
+            File = case code:priv_dir(mimetypes) of
                 {error, bad_name} ->
-                    File = filename:join([filename:dirname(code:which(?MODULE)),
+                    filename:join([filename:dirname(code:which(?MODULE)),
                                           "..",
                                           "priv",
                                           "mime.types"
                                          ]);
                 Priv ->
-                    File = filename:join(Priv, "mime.types")
+                    filename:join(Priv, "mime.types")
             end,
             {ok, B} = file:read_file(File),
             S = binary_to_list(B),
