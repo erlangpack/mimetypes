@@ -17,7 +17,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--define(SERVER, ?MODULE). 
+-define(SERVER, ?MODULE).
 -define(MAPMOD, mimetypes_map).
 -define(DISPMOD, mimetypes_disp).
 
@@ -45,11 +45,11 @@ dmodule() ->
 %%      Example:
 %%
 %% ```
-%% 1> mimetypes:extension("c").    
+%% 1> mimetypes:extension("c").
 %% [<<"text/x-c">>]
 %% 2> mimetypes:extension("hrl").
 %% [<<"application/octet-stream">>]
-%% 3> mimetypes:extension(<<"html">>).   
+%% 3> mimetypes:extension(<<"html">>).
 %% [<<"text/html">>]
 %% '''
 -spec extension(Extension :: binary() | string()) -> [binary()].
@@ -62,7 +62,7 @@ extension(Ext) ->
 %% Example:
 %%
 %% ```
-%% 1> mimetypes:filename("test.cpp").    
+%% 1> mimetypes:filename("test.cpp").
 %% [<<"text/x-c">>]
 %% 2> mimetypes:filename("/etc/fstab").
 %% ["<<application/octet-stream">>]
@@ -100,12 +100,12 @@ extensions(Type) when is_binary(Type) ->
 
 %% @doc Return a list of all available mimetypes.
 -spec types() -> [binary()].
-types() ->    
+types() ->
     ?DISPMOD:mimes(default).
 
 %% @doc Return a list of all available extensions.
 -spec extensions() -> [binary()].
-extensions() ->    
+extensions() ->
     ?DISPMOD:exts(default).
 
 
@@ -170,7 +170,7 @@ mime_to_exts(MimeType, Database) ->
 -spec checkdefault(undefined | [binary()]) -> [binary()].
 checkdefault(undefined) -> [<<"application/octet-stream">>];
 checkdefault(Other=[_|_]) -> Other.
-    
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -334,7 +334,7 @@ extract_extensions([{Type, Exts}|Rest]) ->
 -spec load_mapping(atom(), [{binary(), binary()}]) -> ok.
 load_mapping(Module, Pairs) ->
     AbsCode = map_to_abstract(Module, Pairs),
-    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    {ok, Module, Binary} = compile_forms(AbsCode, [debug_info]),
     ok = load_binary(Module, Binary).
 
 %% @private Write a list of mimetype-extension pairs.
@@ -343,7 +343,7 @@ load_mapping(Module, Pairs) ->
 -spec write_mapping(atom(), [{binary(), binary()}]) -> ok.
 write_mapping(Module, Pairs) ->
     AbsCode = map_to_abstract(Module, Pairs),
-    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    {ok, Module, Binary} = compile_forms(AbsCode, [debug_info]),
     ok = write_binary(Module, Binary),
     ok = load_binary(Module, Binary).
 
@@ -352,7 +352,7 @@ write_mapping(Module, Pairs) ->
 load_dispatch(Pairs) ->
     Module = ?DISPMOD,
     AbsCode = disp_to_abstract(Module, Pairs),
-    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    {ok, Module, Binary} = compile_forms(AbsCode, [debug_info]),
     ok = load_binary(Module, Binary).
 
 %% @private Write a list of database-module pairs.
@@ -360,7 +360,7 @@ load_dispatch(Pairs) ->
 write_dispatch(Pairs) ->
     Module = ?DISPMOD,
     AbsCode = disp_to_abstract(Module, Pairs),
-    {ok, Module, Binary} = compile_forms(AbsCode, []),
+    {ok, Module, Binary} = compile_forms(AbsCode, [debug_info]),
     ok = write_binary(Module, Binary),
     ok = load_binary(Module, Binary).
 
