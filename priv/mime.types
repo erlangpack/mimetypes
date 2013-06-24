@@ -68,6 +68,7 @@ application/exi					exi
 # application/fastsoap
 # application/fits
 application/font-tdpfr				pfr
+application/font-woff				woff
 # application/framework-attributes+xml
 # application/h224
 # application/held+xml
@@ -1000,7 +1001,6 @@ application/x-font-snf				snf
 # application/x-font-sunos-news
 application/x-font-ttf				ttf ttc
 application/x-font-type1			pfa pfb pfm afm
-application/x-font-woff				woff
 # application/x-font-vfont
 application/x-futuresplash			spl
 application/x-gnumeric				gnumeric
