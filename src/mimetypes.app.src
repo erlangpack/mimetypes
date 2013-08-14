@@ -3,6 +3,7 @@
   {description, "mimetypes"},
   {vsn, "1.0"},
   {registered, [mimetypes]},
+  {modules, []},
   {applications, [
                   kernel,
                   stdlib
