@@ -3,6 +3,14 @@
   {description, "mimetypes"},
   {vsn, "1.0"},
   {registered, [mimetypes]},
+  {modules, [
+    mimetypes,
+    mimetypes_app,
+    mimetypes_loader,
+    mimetypes_parse,
+    mimetypes_scan,
+    mimetypes_sup
+  ]},
   {applications, [
                   kernel,
                   stdlib
