@@ -130,8 +130,8 @@ async_loader_test_() ->
         ]}.
 
 async_loader_onstart() ->
-    ?assertEqual(undefined, mimetypes:ext_to_mimes(<<"foo2">>)).
+    ?_assertEqual(undefined, mimetypes:ext_to_mimes(<<"foo2">>)).
 
 async_loader_wait() ->
     receive after 5000 -> ok end, %% @todo don't use an arbitrary time
-    ?assertEqual([<<"bar2">>], mimetypes:ext_to_mimes(<<"foo2">>)).
+    ?_assertEqual([<<"bar2">>], mimetypes:ext_to_mimes(<<"foo2">>)).

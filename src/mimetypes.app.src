@@ -1,12 +1,14 @@
-{application, mimetypes,
- [
-  {description, "mimetypes"},
-  {vsn, "1.0"},
-  {registered, [mimetypes]},
-  {applications, [
-                  kernel,
-                  stdlib
-                 ]},
-  {mod, { mimetypes_app, []}},
-  {env, []}
- ]}.
+{application, mimetypes, [
+    {vsn, "git"},
+    {description, "mimetypes"},
+    {registered, [mimetypes]},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {mod, {mimetypes_app, []}},
+    {env, []},
+    {maintainers, ["Yurii Rashkovskii", "ErlangPack"]},
+    {licenses, ["BSD"]},
+    {links, [{"Github", "https://github.com/erlangpack/mimetypes"}]}
+]}.
