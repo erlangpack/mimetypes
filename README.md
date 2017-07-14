@@ -1,6 +1,9 @@
 mimetypes
 =========
 
+[![Build Status](https://travis-ci.org/erlangpack/mimetypes.svg?branch=master)](https://travis-ci.org/erlangpack/mimetypes)
+[![Hex pm](http://img.shields.io/hexpm/v/mimetypes.svg?style=flat)](https://hex.pm/packages/mimetypes)
+
 `mimetypes` is an Erlang library to fetch MIME extension/name mappings.
 
 Usage
@@ -24,7 +27,7 @@ ok
  <<"application/x-mpegurl">>]
 6> mimetypes:filename("/a/b.js").
 <<"application/javascript">>
-7> mimetypes:extensions("application/mathematica").
+7> mimetypes:extensions(<<"application/mathematica">>).
 [<<"ma">>,<<"nb">>,<<"mb">>]
 ```
 
