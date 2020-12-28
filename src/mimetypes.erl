@@ -96,7 +96,7 @@ extension(Ext) ->
 %% [<<"text/plain">>]
 %% '''
 
--spec filename(Filename :: string()) -> [binary()].
+-spec filename(file:filename_all()) -> [binary()].
 filename(Filename) ->
     path_to_mimes(Filename).
 
@@ -138,12 +138,12 @@ extensions() ->
 %% @doc Create a new database of extension-mimetype mappings.
 %% The name 'default' is reserved.
 %% @end
--spec create(term()) -> ok.
+-spec create(term()) -> ok | exists.
 create(Database) when Database =/= default ->
     gen_server:call(?SERVER, {create, Database}).
 
 %% @doc Load a set of extension-mimetype mappings.
--spec load(term(), [{binary(), binary()}]) -> ok.
+-spec load(term(), [{binary(), binary()}]) -> ok | noexists.
 load(Database, Mappings) ->
     gen_server:call(?SERVER, {load, Database, Mappings}).
 
@@ -579,7 +579,7 @@ mimes_clause(Pairs) ->
 
 
 %% @private Compile a module.
--spec compile_forms(erlang_form(), compile_options()) -> {ok, atom, binary()}.
+-spec compile_forms(erlang_form(), compile_options()) -> {ok, atom(), binary()}.
 compile_forms(AbsCode, Opts) ->
     case compile:forms(AbsCode, Opts) of
         {ok, ModName, Binary} ->

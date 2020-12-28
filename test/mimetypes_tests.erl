@@ -47,9 +47,7 @@ prop_type() ->
             lists:all(fun (X) -> X end,
                       [ case mimetypes:extension(Ext) of
                             Types when is_list(Types) ->
-                                lists:member(Type, Types);
-                            Type1 ->
-                                Type1 =:= Type
+                                lists:member(Type, Types)
                         end || Ext <- mimetypes:extensions(Type) ])).
 
 prop_filename() ->
@@ -130,7 +128,7 @@ async_loader_test_() ->
         ]}.
 
 async_loader_onstart() ->
-    ?_assertEqual(undefined, mimetypes:ext_to_mimes(<<"foo2">>)).
+    ?_assertEqual([<<"application/octet-stream">>], mimetypes:ext_to_mimes(<<"foo2">>)).
 
 async_loader_wait() ->
     receive after 5000 -> ok end, %% @todo don't use an arbitrary time
