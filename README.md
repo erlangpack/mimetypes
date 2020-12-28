@@ -1,7 +1,7 @@
 mimetypes
 =========
 
-[![Build Status](https://travis-ci.org/erlangpack/mimetypes.svg?branch=master)](https://travis-ci.org/erlangpack/mimetypes)
+![Test](https://github.com/erlangpack/mimetypes/workflows/Test/badge.svg)
 [![Hex pm](http://img.shields.io/hexpm/v/mimetypes.svg?style=flat)](https://hex.pm/packages/mimetypes)
 
 `mimetypes` is an Erlang library to fetch MIME extension/name mappings.
