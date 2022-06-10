@@ -1,0 +1,6 @@
+@author Yurii Rashkovskii
+@author Magnus Klaar
+@title mimetypes
+@doc Erlang MIME types library.
+@copyright BSD, © 2011-2013 Spawngrid, Inc.
+@since 2011

@@ -78,4 +78,4 @@ config file specified using the ```erl -config``` flag.
 [hexdocs]: https://hexdocs.pm/mimetypes
 [gh]: https://github.com/erlangpack/mimetypes/actions/workflows/test.yaml
 [gh badge]: https://github.com/erlangpack/mimetypes/workflows/Test/badge.svg
-[erlang version badge]: https://img.shields.io/badge/Supported%20Erlang%2FOTP-21%20to%2023-blue.svg?style=flat-curcle
+[erlang version badge]: https://img.shields.io/badge/Supported%20Erlang%2FOTP-22%20to%2024-blue.svg?style=flat-curcle

@@ -6,3 +6,4 @@ src/mimetypes_scan.erl
 src/mimetypes_parse.erl
 rebar3
 doc/*
+!doc/overview.edoc
