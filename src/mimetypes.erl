@@ -198,13 +198,8 @@ checkdefault(undefined) -> [<<"application/octet-stream">>];
 checkdefault(Other=[_|_]) -> Other.
 
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
-%% @end
-%%--------------------------------------------------------------------
+%% @doc Starts the server
+
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -212,17 +207,18 @@ start_link() ->
 %%% gen_server callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% Initializes the server
-%%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
-%% @end
-%%--------------------------------------------------------------------
+%% @doc Initializes the server
+
+-spec init(Args) -> Result when
+	Args :: list(),
+	Result :: {ok, State} | 
+                       {ok, State, Timeout} |
+                       ignore |
+                       {stop, Reason},
+	State :: term(),
+	Timeout :: timeout(),
+	Reason :: term().
 init([]) ->
     case code:which(?MAPMOD) of
         non_existing ->
@@ -249,20 +245,28 @@ init([]) ->
     ok = filter_modules(),
     {ok, #state{}}.
 
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% Handling call messages
-%%
-%% @spec handle_call(Request, From, State) ->
-%%                                   {reply, Reply, State} |
-%%                                   {reply, Reply, State, Timeout} |
-%%                                   {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, Reply, State} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
+%% @doc Handling call messages
+
+-spec handle_call(Request, From, State) -> Result when
+	Request :: term(),
+	From :: gen_server:from(),
+	State :: term(),
+	Result :: {reply,Reply,NewState}
+				  | {reply,Reply,NewState,Timeout}
+				  | {reply,Reply,NewState,hibernate}
+				  | {reply,Reply,NewState,{continue,Continue}}
+				  | {noreply,NewState}
+				  | {noreply,NewState,Timeout}
+				  | {noreply,NewState,hibernate}
+				  | {noreply,NewState,{continue,Continue}}
+				  | {stop,Reason,Reply,NewState}
+				  | {stop,Reason,NewState},
+	Reply :: term(),
+	NewState :: term(),
+	Timeout :: timeout(),
+	Continue :: term(),
+	Reason :: term().
 handle_call({create, Name}, _From, State) ->
     Modules = ?DISPMOD:modules(),
     case lists:keyfind(Name, 1, Modules) of
@@ -296,54 +300,66 @@ handle_call({load, Name, New}, _From, #state{}=State) ->
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% Handling cast messages
-%%
-%% @spec handle_cast(Msg, State) -> {noreply, State} |
-%%                                  {noreply, State, Timeout} |
-%%                                  {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
+%% @doc Handling cast messages
+
+-spec handle_cast(Request, State) -> Result when
+	Request :: term(),
+	State :: term(),
+	Result :: {noreply,NewState}
+			  | {noreply,NewState,Timeout}
+			  | {noreply,NewState,hibernate}
+			  | {noreply,NewState,{continue,Continue}}
+			  | {stop,Reason,NewState},
+	NewState :: term(),
+	Timeout :: timeout(),
+	Continue :: term(),
+	Reason :: term().
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% Handling all non call/cast messages
-%%
-%% @spec handle_info(Info, State) -> {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
+%% @doc Handling all non call/cast messages
+
+-spec handle_info(Info, State) -> Result when
+	Info :: timeout | term(),
+	State :: term(),
+	Result :: {noreply,NewState}
+			  | {noreply,NewState,Timeout}
+			  | {noreply,NewState,hibernate}
+			  | {noreply,NewState,{continue,Continue}}
+			  | {stop,Reason,NewState},
+	NewState :: term(),
+	Continue :: term(),
+	Timeout :: timeout(),
+	Reason :: normal | term().
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
+%% @doc This function is called by a gen_server when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
 %% necessary cleaning up. When it returns, the gen_server terminates
 %% with Reason. The return value is ignored.
-%%
-%% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
+
+-spec terminate(Reason, State) -> Result when
+	Reason :: normal | shutdown | {shutdown,term()} | term(),
+	State :: term(),
+	Result :: term().
 terminate(_Reason, _State) ->
     ok.
 
-%%--------------------------------------------------------------------
 %% @private
-%% @doc
-%% Convert process state when code is changed
-%%
-%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% @end
-%%--------------------------------------------------------------------
+%% @doc Convert process state when code is changed
+
+-spec code_change(OldVsn, State, Extra) -> Result when
+	OldVsn :: Vsn | {down, Vsn},
+	Vsn :: term(),
+	State :: term(),
+	Extra :: term(),
+	Result :: {ok, NewState} | {error, Reason},
+	NewState :: term(),
+	Reason :: term().
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

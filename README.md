@@ -1,8 +1,11 @@
+[![Build Status][gh badge]][gh]
+[![Hex.pm version][hexpm version]][hexpm]
+[![Hex.pm Downloads][hexpm downloads]][hexpm]
+[![Hex.pm Documentation][hexdocs documentation]][hexdocs]
+[![Erlang Versions][erlang version badge]][gh]
+
 mimetypes
 =========
-
-![Test](https://github.com/erlangpack/mimetypes/workflows/Test/badge.svg)
-[![Hex pm](http://img.shields.io/hexpm/v/mimetypes.svg?style=flat)](https://hex.pm/packages/mimetypes)
 
 `mimetypes` is an Erlang library to fetch MIME extension/name mappings.
 
@@ -66,3 +69,13 @@ config file specified using the ```erl -config``` flag.
     ]}
 ]}].
 ```
+
+<!-- Badges -->
+[hexpm]: https://hex.pm/packages/mimetypes
+[hexpm version]: https://img.shields.io/hexpm/v/mimetypes.svg?style=flat-curcle "Hex version"
+[hexpm downloads]: https://img.shields.io/hexpm/dt/mimetypes.svg?style=flat-curcle
+[hexdocs documentation]: https://img.shields.io/badge/hex-docs-purple.svg?style=flat-curcle
+[hexdocs]: https://hexdocs.pm/mimetypes
+[gh]: https://github.com/erlangpack/mimetypes/actions/workflows/test.yaml
+[gh badge]: https://github.com/erlangpack/mimetypes/workflows/Test/badge.svg
+[erlang version badge]: https://img.shields.io/badge/Supported%20Erlang%2FOTP-22%20to%2024-blue.svg?style=flat-curcle
